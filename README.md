@@ -1,10 +1,10 @@
-# 🛠️ Mission: 개발 워크스테이션 구축 및 환경 자동화
+# 🚀 개발 워크스테이션 구축 및 Docker/Git 실습 최종 보고서
 
-본 프로젝트는 리눅스 터미널 조작, 권한 관리, Docker를 이용한 컨테이너화, 그리고 Git을 통한 버전 관리 환경을 구축하는 과정을 기록한 기술 문서입니다.
+## 1. 프로젝트 개요
+- **미션 목표**: 터미널 환경 설정, Docker 컨테이너 운영, 커스텀 이미지 제작 및 Git/GitHub 연동 과정을 문서화하여 표준 개발 워크스테이션 구축을 완료함.
 
----
+## 2. 실행 환경
 
-## 1. 실행 환경 (Environment)
 | 항목 | 상세 내용 |
 | :--- | :--- |
 | **OS** | [예: Ubuntu 22.04 LTS / macOS Sonoma] |
@@ -12,124 +12,184 @@
 | **Docker** | [예: Docker Desktop 4.2x / Engine 26.x] |
 | **Git** | [예: 2.4x.x] |
 
----
-
-## 2. 수행 체크리스트 (Checklist)
-- [x] 터미널 기본 조작 및 폴더 구조 설계
-- [x] 파일 및 디렉토리 권한 설정 (chmod)
-- [x] Docker 설치 및 데몬 상태 점검
-- [x] `hello-world` 및 `ubuntu` 이미지 실행 테스트
-- [x] 커스텀 `Dockerfile` 작성 및 이미지 빌드
-- [x] 포트 매핑(Port Mapping)을 통한 외부 접속 검증 (2회 이상)
-- [x] Docker 볼륨(Volume)을 활용한 데이터 영속성 증명
-- [x] 로컬 Git 설정 및 GitHub 원격 저장소 연동
-
----
-
-## 3. 핵심 개념 자기 설명 (Self-Explanation)
-1. **절대 경로 vs 상대 경로**: 
-   - 절대 경로는 루트(`/`)부터 시작하는 고유 주소이며, 상대 경로는 현재 위치(`.`)를 기준으로 한 경로입니다.
-2. **파일 권한 (755 vs 644)**: 
-   - 755는 소유자에게 모든 권한을, 644는 소유자에게만 쓰기 권한을 부여합니다.
-3. **Docker 이미지 vs 컨테이너**: 
-   - 이미지는 실행 파일/설정의 묶음(설계도)이고, 컨테이너는 이를 실행한 상태(실체)입니다.
-4. **포트 매핑의 필요성**: 
-   - 격리된 컨테이너 내부 네트워크 포트를 호스트 PC의 포트와 연결하여 외부 접속을 허용합니다.
-5. **Docker 볼륨의 역할**: 
-   - 컨테이너 삭제 시 사라지는 데이터를 호스트 저장소나 별도 볼륨에 저장하여 영구 보존합니다.
-6. **Git과 GitHub의 차이**: 
-   - Git은 로컬 버전 관리 도구이며, GitHub은 이를 공유하고 협업하는 원격 플랫폼입니다.
+## 3. 수행 항목 체크리스트
+- [x] **터미널**: 기본 조작 및 파일 관리 완료
+- [x] **권한**: 파일/디렉토리 권한 변경 및 전후 비교 기록 완료
+- [x] **Docker 설치**: 버전 확인 및 데몬 상태 점검 완료
+- [x] **Docker 운영**: 이미지/컨테이너 관리 및 로그 확인 완료
+- [x] **컨테이너 실습**: hello-world 및 ubuntu 내부 진입 실습 완료
+- [x] **Dockerfile**: 커스텀 이미지 빌드 및 컨테이너 실행 성공
+- [x] **포트 매핑**: 호스트 포트 연결 및 서비스 접속 증거 확보
+- [x] **볼륨 영속성**: 컨테이너 삭제 후 데이터 유지 검증 완료
+- [x] **Git/GitHub**: 사용자 정보 설정 및 GitHub 저장소 연동 완료
+- [x] **보안**: 민감 정보 마스킹 및 개인정보 보호 준수 완료
 
 ---
 
-## 4. 수행 로그 및 증거 (Execution Logs)
+## 4. 터미널 조작 로그 기록
+> **수행 내용**: 위치 확인, 디렉토리 생성/이동, 파일 생성/확인/복사/삭제
 
-### 4.1 터미널 조작 및 권한 설정
-```bash
-# 1. 작업 디렉토리 생성 및 이동
-$ mkdir -p ~/codyssey/workstation && cd ~/codyssey/workstation
+- **현재 위치 확인**
 
-# 2. 파일 생성 및 권한 변경 (644 -> 755)
-$ touch script.sh
-$ ls -l script.sh
--rw-r--r-- 1 user user 0 May 20 10:00 script.sh
+      $ pwd
+      /Users/dlrghks20902090/Desktop
 
-$ chmod 755 script.sh
-$ ls -l script.sh
--rwxr-xr-x 1 user user 0 May 20 10:00 script.sh
+- **디렉토리 생성**
 
-```
+      $ mkdir kan
+      $ ls
+      kan
 
-### 4.2 Docker 실습 및 커스텀 이미지 빌드
-[Dockerfile]
-```bash
-FROM nginx:alpine
-LABEL maintainer="yourname <email@example.com>"
-# 기본 인덱스 페이지 교체
-COPY ./html/index.html /usr/share/nginx/html/index.html
-EXPOSE 80
-```
+- **디렉토리 이동**
 
-[빌드 및 실행 로그]
-```bash
-# 이미지 빌드
-$ docker build -t my-web-app:1.0 .
+      $ dlrghks20902090@c3r2s7 Desktop % cd kan
+      $ dlrghks20902090@c3r2s7 kan % 
 
-# 1차 실행 (8080 포트)
-$ docker run -d -p 8080:80 --name web-1 my-web-app:1.0
+- **디렉토리 삭제**
 
-# 2차 실행 (8081 포트)
-$ docker run -d -p 8081:80 --name web-2 my-web-app:1.0
+      dlrghks20902090@c3r2s7 Desktop % rm -r kan
 
-# 컨테이너 상태 확인
-$ docker ps
-```
+- **파일 생성**
 
-📸 증거 스크린샷 (브라우저 접속)
-Browser Access
-(주소창의 localhost:8080과 응답 화면이 포함되어야 함)
+      $ vim memo.txt
+      $ echo "Terminal Practice" > memo.txt
 
-### 4.3 볼륨 영속성 검증
+- **파일 이동**
 
-# 1. 볼륨 생성 및 데이터 쓰기
-```bash
-$ docker volume create my-data
-$ docker run -it --rm -v my-data:/app ubuntu sh -c "echo 'Hello Docker' > /app/test.txt"
-```
+      $ vim memo.txt
+      $ echo "Terminal Practice" > memo.txt
 
-# 2. 컨테이너 삭제 후 새 컨테이너에서 데이터 확인
-```bash
-$ docker run -it --rm -v my-data:/app ubuntu cat /app/test.txt
-Hello Docker
-```
----
+- **파일 내용 확인**
 
-## 5. Git & GitHub 설정
-# Git 사용자 설정 (이메일 마스킹 처리)
-```bash
-$ git config --global user.name "YourName"
-$ git config --global user.email "y***@example.com"
-```
+      $ cat memo.txt
 
-# 원격 저장소 연결 확인
-```bash
-$ git remote -v
-origin  https://github.com/YourID/workstation-mission.git (fetch)
-origin  https://github.com/YourID/workstation-mission.git (push)
-```
+- **파일 복사**
+
+      $ cp memo.txt backup.txt
+
+- **파일 삭제**
+
+      $ rm memo.txt
 
 ---
 
-## 6. 트러블슈팅 및 회고
-이슈: Docker 빌드 중 COPY 명령에서 경로 오류 발생.
-원인: Dockerfile이 위치한 경로가 아닌 상위 경로에서 빌드를 시도함.
-해결: 빌드 컨텍스트 위치를 .으로 정확히 지정하여 해결함.
-회고: 이번 미션을 통해 인프라의 기본인 터미널과 컨테이너 환경의 중요성을 깨달았습니다. 특히 볼륨을 통한 데이터 보존 방식이 인상적이었습니다.
+## 5. 권한 실습 및 증거 기록
+> **수행 내용**: 파일/디렉토리 권한 변경 (변경 전후 표 참고)
 
+- **파일 권한 변경**
 
-### 💡 작성 가이드 (튜터의 팁)
-1.  **이미지 경로**: `screenshots`라는 폴더를 만들고 그 안에 캡처본을 넣은 뒤, 위 마크다운 코드의 `./screenshots/파일명.png` 부분을 실제 파일명과 맞추세요.
-2.  **마스킹**: `git config` 결과나 로그에 개인 정보(토큰, 실제 이메일 등)가 있다면 `***`로 가려주는 센스를 보여주세요.
-3.  **가독성**: 코드 블록(```)을 사용하면 평가자가 명령어를 복사해서 테스트해보기 매우 편리합니다.
+      $ chmod 600 note.txt
 
-이 템플릿은 깔끔함과 전문성을 동시에 잡을 수 있도록 설계되었습니다. 실습 내용을 잘 채워 넣어 멋진 결과물 만드시길 바랍니다! 🚀
+- **디렉토리 권한 변경**
+
+      $ chmod 700 workspace
+
+| 대상 | 변경 전 | 변경 후 |
+| :--- | :--- | :--- |
+| `note.txt` | `-rw-r--r--` | `-rw-------` |
+| `workspace` | `drwxr-xr-x` | `drwx------` |
+
+---
+
+## 6. Docker 설치 및 기본 점검
+> **수행 내용**: 버전 확인 및 데몬 상태 점검
+
+- **Docker 버전 확인**
+
+      $ docker --version
+
+- **Docker 상세 버전 확인**
+
+      $ docker version
+
+- **Docker 데몬 동작 확인**
+
+      $ docker info | grep "Server Version"
+
+- **Docker 서비스 상태 확인**
+
+      $ systemctl status docker
+
+---
+
+## 7. Docker 기본 운영
+> **수행 내용**: 이미지 다운로드 및 목록 확인
+
+- **이미지 다운로드**
+
+      $ docker pull nginx
+
+- **이미지 목록 확인**
+
+      $ docker images
+
+---
+
+## 8. 컨테이너 실행 실습
+> **수행 내용**: ubuntu 컨테이너 내부 진입
+
+- **ubuntu 컨테이너 실행**
+
+      $ docker run -it ubuntu /bin/bash
+
+---
+
+## 9. 커스텀 Dockerfile 제작 및 포트 매핑
+> **수행 내용**: 이미지 빌드, 컨테이너 실행, 접속 검증 (베이스: nginx:latest)
+
+- **커스텀 이미지 빌드**
+
+      $ docker build -t my-web:v1 .
+
+- **컨테이너 실행 (포트 매핑)**
+
+      $ docker run -d -p 8081:80 --name my-app my-web:v1
+
+- **포트 접속 검증**
+
+      $ curl -I localhost:8081
+
+---
+
+## 10. Docker 볼륨 영속성 검증
+> **수행 내용**: 볼륨 생성 → 데이터 저장 → 데이터 유지 확인
+
+- **볼륨 생성**
+
+      $ docker volume create my-vol
+
+- **볼륨에 데이터 저장**
+
+      $ docker run -v my-vol:/data ubuntu sh -c "echo 'saved' > /data/test.txt"
+
+- **데이터 유지 확인**
+
+      $ docker run --rm -v my-vol:/data ubuntu cat /data/test.txt
+
+---
+
+## 11. Git 설정 및 GitHub 연동
+> **수행 내용**: 사용자 정보 및 원격 저장소 확인
+
+- **Git 사용자 정보 확인**
+
+      $ git config --list
+
+- **GitHub 원격 저장소 확인**
+
+      $ git remote -v
+
+---
+
+## 12. 트러블슈팅
+> **문제/해결**: Docker 권한 거부(Permission Denied) → 사용자 그룹 추가로 해결
+
+- **사용자 그룹 추가**
+
+      $ sudo usermod -aG docker $USER
+
+---
+
+## 13. 보안 및 개인정보 보호
+- [x] 로그 내 비밀번호, API 키 등 민감 정보 마스킹 처리 완료
+- [x] `.gitignore` 파일로 불필요한 설정 파일 업로드 차단 조치 완료
