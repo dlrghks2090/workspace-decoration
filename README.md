@@ -212,7 +212,7 @@
       $ docker --version
       Docker version 27.3.1, build ce12230
 
-- **Docker 상세 버전 확인 (클라이언트/서버 분리 확인)**
+- **클라이언트/서버 분리 및 데몬 응답 확인**
 
       $ docker version
       Client:
@@ -238,12 +238,9 @@
        runc:
         Version:          1.1.13
 
-- **Docker 데몬 동작 확인**
+> **`Server:` 섹션이 데몬 동작의 증거다.** `docker --version` 은 CLI 혼자 출력하므로 데몬이 꺼져 있어도 성공한다. 반면 `docker version` 은 Client 정보를 찍은 뒤 **데몬에 질의해** Server 섹션을 채우므로, 위 출력이 나왔다는 것은 데몬이 응답했다는 뜻이다. 데몬이 없으면 Client 섹션만 나오고 `Cannot connect to the Docker daemon` 으로 종료된다 (15-1 참고).
 
-      $ docker info | grep "Server Version"
-       Server Version: 27.3.1
-
-> **macOS 기준 참고**: 이 환경은 macOS이므로 데몬 상태 확인에 `systemctl status docker` 를 쓰지 않는다. `systemctl` 은 systemd 기반 Linux 전용 명령이며, macOS에서는 Docker Desktop 앱이 리눅스 VM 안의 데몬을 관리한다. 위 `docker version` 출력에서 Client는 `darwin/arm64`, Server는 `linux/arm64` 로 갈리는 것이 그 증거다. 데몬 기동 여부는 `docker info` 의 응답 성공 자체로 확인한다.
+> **macOS 기준 참고**: 이 환경은 macOS이므로 데몬 상태 확인에 `systemctl status docker` 를 쓰지 않는다. `systemctl` 은 systemd 기반 Linux 전용 명령이며, macOS에서는 Docker Desktop 앱이 리눅스 VM 안의 데몬을 관리한다. 위 출력에서 Client는 `darwin/arm64`, Server는 `linux/arm64` 로 갈리는 것이 그 증거다.
 
 ---
 
@@ -713,10 +710,10 @@
 
 - **결과**
 
-      $ docker info | grep "Server Version"
-       Server Version: 27.3.1
+      $ docker info --format 'Server Version: {{.ServerVersion}}'
+      Server Version: 27.3.1
 
-- **배운 점**: `docker --version` 이 동작한다고 Docker가 쓸 수 있는 상태인 것은 아니다. CLI 설치 확인과 데몬 동작 확인은 별개이며, 데몬 확인은 `docker info` 로 해야 한다.
+- **배운 점**: `docker --version` 이 동작한다고 Docker가 쓸 수 있는 상태인 것은 아니다. **CLI 설치 확인과 데몬 동작 확인은 별개**다. `docker --version` 은 CLI 혼자 처리하므로 데몬이 꺼져 있어도 성공하고, `docker version` 이나 `docker info` 처럼 **데몬에 질의하는 명령**이라야 동작 여부를 알 수 있다.
 
 ### 15-2. 호스트 포트가 이미 사용 중이라 포트 매핑 실패
 
