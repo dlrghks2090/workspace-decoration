@@ -407,6 +407,29 @@ docker run -d my-web:v1
 docker run -d -p 8081:80 my-web:v1
 ```
 
+#### 변수를 쓰면 빌드 시점에 굳는다
+
+보고서의 Dockerfile은 `EXPOSE ${NGINX_PORT}` 라고 썼다. 실행할 때 값이 정해질 것 같지만 아니다. **빌드 시점의 `ENV` 값으로 이미지에 박힌다.**
+
+```bash
+docker inspect my-web:v1 --format '{{.Config.ExposedPorts}}'
+# map[80/tcp:{}]
+```
+
+`ENV NGINX_PORT=80` 이 굳어 `80` 이 됐다. 나중에 `NGINX_PORT=8080` 으로 실행해도 이 값은 그대로다. 그래서 보고서 17-3의 출력이 이렇게 나온다.
+
+```
+NAME                         IMAGE       ...  PORTS
+workspace-decoration-web-1   my-web:v1   ...  80/tcp, 0.0.0.0:8081->8080/tcp
+```
+
+| 표시 | 정체 |
+| :--- | :--- |
+| `80/tcp` | 빌드 때 굳은 `EXPOSE`. **실제와 다르다** |
+| `0.0.0.0:8081->8080/tcp` | 진짜 포트 매핑 |
+
+한 줄에 낡은 메모와 실제 동작이 나란히 찍혀 있는 셈이다. 어차피 문서용이라 동작에는 영향이 없지만, 평가에서 "여기 80은 뭐냐"고 물으면 이렇게 답하면 된다.
+
 ### CMD vs ENTRYPOINT — 실행 명령
 
 ```dockerfile
@@ -525,7 +548,9 @@ COPY . .
 
 ## 5. nginx 이미지의 템플릿 기능
 
-보고서 17-4에서 쓴 기능이라 따로 설명한다. 공식 nginx 이미지에는 특별한 동작이 내장돼 있다.
+보고서 17-4에서 쓴 기능이라 따로 설명한다.
+
+먼저 오해부터 걷어내자. **`.template` 은 Docker 기능이 아니다.** Dockerfile의 `COPY` 는 그냥 파일을 복사할 뿐이고, 치환은 **nginx 공식 이미지 안에 들어 있는 스크립트**가 컨테이너 기동 시에 한다. 그래서 Dockerfile만 봐서는 알 수 없다.
 
 ```
 컨테이너 기동
@@ -540,19 +565,102 @@ COPY . .
 nginx 시작
 ```
 
-보고서 8번의 로그에서 실제로 확인된다.
+### 이미지 안을 직접 열어 확인하기
+
+nginx 이미지는 뜨자마자 nginx를 실행하지 않는다. `ENTRYPOINT` 가 먼저 돈다.
+
+```bash
+docker inspect nginx:latest --format 'ENTRYPOINT={{.Config.Entrypoint}}  CMD={{.Config.Cmd}}'
+# ENTRYPOINT=[/docker-entrypoint.sh]  CMD=[nginx -g daemon off;]
+```
+
+`/docker-entrypoint.sh` 는 **`/docker-entrypoint.d/` 안의 스크립트를 이름순으로 모두 실행한 뒤**에야 `CMD` 를 띄운다. 그 폴더를 열어보면 범인이 나온다.
+
+```bash
+docker run --rm nginx:latest ls /docker-entrypoint.d/
+# 10-listen-on-ipv6-by-default.sh
+# 15-local-resolvers.envsh
+# 20-envsubst-on-templates.sh      ← 이 스크립트
+# 30-tune-worker-processes.sh
+```
+
+스크립트 본문에서 핵심만 추리면 세 줄이다.
+
+```sh
+template_dir="${NGINX_ENVSUBST_TEMPLATE_DIR:-/etc/nginx/templates}"   # 어디서 찾을지
+suffix="${NGINX_ENVSUBST_TEMPLATE_SUFFIX:-.template}"                 # 어떤 이름을
+output_dir="${NGINX_ENVSUBST_OUTPUT_DIR:-/etc/nginx/conf.d}"          # 어디로 내보낼지
+
+find "$template_dir" -type f -name "*$suffix" | while read -r template; do
+    output_path="$output_dir/${relative_path%"$suffix"}"   # .template 을 떼어낸 이름
+    envsubst "$defined_envs" < "$template" > "$output_path"
+done
+```
+
+경로와 확장자가 곧 **스크립트와의 약속**이다.
 
 ```
-20-envsubst-on-templates.sh: Running envsubst on
-  /etc/nginx/templates/default.conf.template
-  to /etc/nginx/conf.d/default.conf
+/etc/nginx/templates/default.conf.template
+              │                     └── 이 꼬리가 잘리고
+              └── 이 폴더가 conf.d 로 바뀌어
+/etc/nginx/conf.d/default.conf
 ```
 
-그래서 Dockerfile이 파일을 `/etc/nginx/templates/` 에 넣는다.
+그래서 Dockerfile의 `COPY` 목적지가 반드시 그 경로여야 한다.
 
 ```dockerfile
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 ```
+
+다른 폴더에 두거나 `.template` 을 빼면 스크립트가 찾지 못하고, **치환은 조용히 일어나지 않는다.** 에러도 나지 않으므로 알아채기 어렵다.
+
+> 위 3개 변수(`NGINX_ENVSUBST_TEMPLATE_DIR` 등)는 모두 `:-` 기본값이라, 원하면 환경 변수로 경로와 확장자를 바꿀 수도 있다.
+
+### 실제 기동 로그
+
+`-e` 로 포트를 바꿔 띄우면 스크립트가 일하는 장면이 로그에 남는다.
+
+```bash
+docker run -d --name tmp-tpl -e NGINX_PORT=9999 my-web:v1
+docker logs tmp-tpl
+```
+
+```
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+20-envsubst-on-templates.sh: Running envsubst on /etc/nginx/templates/default.conf.template to /etc/nginx/conf.d/default.conf
+```
+
+```bash
+docker exec tmp-tpl cat /etc/nginx/conf.d/default.conf
+# server {
+#     listen       9999;      ← 템플릿에는 ${NGINX_PORT} 라고 적혀 있었다
+```
+
+**이미지를 다시 빌드하지 않았는데** 리슨 포트가 바뀌었다. 보고서 17-4의 핵심 시연이 이 구조 위에 서 있다.
+
+> 보고서 8번의 `docker logs my-app` 출력은 `Configuration complete; ready for start up` 부터 시작한다. 그 줄이 바로 엔트리포인트 단계가 끝나는 지점이고, 보고서는 그 뒤부터 발췌했다. 위 로그는 앞부분까지 보려고 따로 재현한 것이다.
+
+### 스크립트 실행 순서가 만드는 함정
+
+로그를 끝까지 보면 이런 순서가 드러난다.
+
+```
+10-listen-on-ipv6-by-default.sh: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+20-envsubst-on-templates.sh: Running envsubst on ... to /etc/nginx/conf.d/default.conf
+```
+
+`10-` 번 스크립트가 `/etc/nginx/conf.d/default.conf` 에 IPv6 설정을 넣는데, 곧이어 `20-` 번이 **같은 파일을 템플릿 결과로 덮어쓴다.** 즉 우리가 템플릿을 제공하는 순간 `10-` 번의 작업은 사라진다.
+
+IPv6로도 받고 싶다면 템플릿에 직접 써 넣어야 한다.
+
+```nginx
+listen       ${NGINX_PORT};
+listen  [::]:${NGINX_PORT};
+```
+
+기본 이미지의 편의 기능이 내 설정에 덮여 없어질 수 있다는 것 — 이름 앞의 숫자가 실행 순서라는 점과 함께 기억해 둘 만하다.
 
 ### envsubst의 함정
 

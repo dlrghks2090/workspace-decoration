@@ -293,15 +293,29 @@ docker compose exec web cat /etc/nginx/conf.d/default.conf
 
 ### nginx 이미지의 envsubst 특성
 
-nginx 공식 이미지는 **정의된 환경 변수만** 치환한다.
+`envsubst` 를 인자 없이 쓰면 **모든** 환경 변수를 치환한다. nginx 설정에는 `$host`, `$uri`, `$remote_addr` 같은 자체 변수가 흔하므로, 그대로 두면 설정이 깨질 수 있다. 그래서 nginx 이미지의 스크립트는 **치환할 변수 목록을 명시적으로 넘긴다.**
 
 ```bash
 # 20-envsubst-on-templates.sh 내부 동작 (요약)
-defined_envs=$(printf '${%s} ' $(env | cut -d= -f1))
+defined_envs=$(printf '${%s} ' $(awk 'END { for (name in ENVIRON) print name }' </dev/null))
 envsubst "$defined_envs" < template > output
 ```
 
-덕분에 nginx 자체 변수(`$uri`, `$host` 등)는 보호된다. 이들은 `${}` 형태가 아니라 `$uri` 형태라 패턴이 다르기도 하다.
+목록은 **현재 정의된 환경 변수 전부**다. 실제로 어떻게 걸러지는지 확인해 보면:
+
+```bash
+export NGINX_PORT=8080
+echo 'A=${NGINX_PORT}  B=$NGINX_PORT  C=$host  D=$remote_addr' | envsubst '${NGINX_PORT}'
+# A=8080  B=8080  C=$host  D=$remote_addr
+```
+
+여기서 두 가지를 읽어야 한다.
+
+**① `$host` 가 살아남은 이유는 형태가 아니라 이름 때문이다.** `${}` 를 안 써서가 아니다. 위 출력의 `B=8080` 을 보면 중괄호 없는 `$NGINX_PORT` 도 똑같이 치환됐다. `$host` 가 무사한 건 **`host` 라는 이름의 환경 변수가 없어서** 목록에 안 들어갔기 때문이다.
+
+**② 뒤집으면 위험이 보인다.** `host` 나 `uri` 라는 환경 변수를 만들면 nginx의 `$host`, `$uri` 가 치환돼 설정이 깨진다. 환경 변수 이름에 `NGINX_PORT` 처럼 접두어를 붙이는 관습에는 이런 이유도 있다.
+
+> 스크립트는 `NGINX_ENVSUBST_FILTER` 환경 변수도 지원한다. 값을 주면 그 정규식에 맞는 이름만 목록에 넣으므로, 치환 대상을 더 좁힐 수 있다.
 
 ---
 
