@@ -186,12 +186,20 @@ docker info
 2. **전송 효율** — `docker pull` 시 이미 있는 층은 받지 않는다.
 3. **빌드 캐시** — 바뀌지 않은 층은 다시 만들지 않는다.
 
-보고서 17-4의 재빌드 로그에서 캐시가 실제로 동작했다.
+캐시 동작은 같은 Dockerfile로 두 번 빌드해 보면 바로 드러난다. 아래는 `index.html` 은 그대로 두고 `default.conf.template` 만 한 줄 고친 뒤의 **2차 빌드** 로그다.
 
 ```
-#6 [web 2/3] COPY index.html ...                #6 CACHED   ← 안 바뀌어서 재사용
-#7 [web 3/3] COPY default.conf.template ...     #7 DONE     ← 바뀌어서 다시 실행
+#5 [1/3] FROM docker.io/library/nginx:latest@sha256:640dee81b9ada...
+#5 DONE 0.0s
+#6 [2/3] COPY index.html /usr/share/nginx/html/index.html
+#6 CACHED                                        ← 안 바뀌어서 재사용
+#7 [3/3] COPY default.conf.template /etc/nginx/templates/default.conf.template
+#7 DONE 0.0s                                     ← 바뀌어서 다시 실행
 ```
+
+바뀐 레이어부터 그 뒤가 다시 실행되고, 앞쪽은 재사용된다. 자세한 순서 전략은 [04. Dockerfile](04-dockerfile.md)의 레이어 캐시 절에 있다.
+
+> 이 로그는 캐시 동작을 보이려고 따로 재현한 것이다. 보고서 17-4는 **재빌드 없이** 환경 변수만으로 포트를 바꾸는 시연이라 빌드 로그가 없다.
 
 ### 이미지 식별
 

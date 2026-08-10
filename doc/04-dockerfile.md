@@ -236,11 +236,13 @@ COPY --from=nginx:latest /etc/nginx/nginx.conf /tmp/
 
 Docker는 `COPY` 대상 파일의 **내용 체크섬**으로 캐시 재사용 여부를 판단한다. 파일이 1바이트라도 바뀌면 그 레이어와 **그 뒤의 모든 레이어**가 다시 실행된다.
 
-보고서 17-4의 재빌드 로그가 이걸 보여준다.
+이 프로젝트의 Dockerfile로 직접 확인할 수 있다. `index.html` 은 그대로 두고 `default.conf.template` 만 한 줄 고친 뒤 다시 빌드하면:
 
 ```
-#6 [web 2/3] COPY index.html ...                #6 CACHED   ← 안 바뀜 → 재사용
-#7 [web 3/3] COPY default.conf.template ...     #7 DONE     ← 바뀜 → 다시 실행
+#6 [2/3] COPY index.html /usr/share/nginx/html/index.html
+#6 CACHED                                        ← 안 바뀜 → 재사용
+#7 [3/3] COPY default.conf.template /etc/nginx/templates/default.conf.template
+#7 DONE 0.0s                                     ← 바뀜 → 다시 실행
 ```
 
 그래서 **자주 바뀌는 파일을 늦게 COPY** 하는 게 빌드 속도에 유리하다. 자세한 순서 전략은 아래 **4. 레이어 캐시** 절에 있다.
@@ -496,14 +498,35 @@ node_modules
 README.md
 ```
 
-보고서 10번의 빌드 로그에서 컨텍스트 크기를 볼 수 있다.
+전송량은 빌드 로그의 `load build context` 단계에서 볼 수 있다. 이 프로젝트를 빌드하면:
 
 ```
 #4 [internal] load build context
-#4 transferring context: 432B done      ← 432바이트만 전송됨
+#4 transferring context: 438B done
 ```
 
-파일이 몇 개 없어서 432B다. `.git` 이 포함됐다면 훨씬 컸을 것이다.
+### 그런데 이 저장소에는 .dockerignore 가 없다
+
+그런데도 438B다. 저장소는 1.1M이고 `.git` 만 728K, `doc/` 가 356K인데 말이다. 뺄 `.dockerignore` 가 없으니 다 보내야 할 것 같은데 왜 이럴까.
+
+**BuildKit(Docker 18.09부터, 27.x 기본)이 컨텍스트를 지연 전송하기 때문이다.** 먼저 파일 목록만 주고받은 뒤, `COPY` 가 실제로 참조하는 파일만 골라 보낸다. 이 Dockerfile은 `index.html`(23B)과 `default.conf.template`(252B) 둘만 `COPY` 하므로 그만큼만 건너간다.
+
+```bash
+# 캐시가 전혀 없는 새 빌더에서 재확인해도 결과는 같다
+docker buildx create --name t --use && docker buildx build -t x --load .
+# transferring context: 438B done
+```
+
+그래서 **"`.git` 이 있으면 컨텍스트가 커진다"는 설명은 지금 기본 빌더에서는 맞지 않는다.** 그럼 `.dockerignore` 가 필요 없느냐 하면 그건 아니다.
+
+| 상황 | `.dockerignore` 가 필요한가 |
+| :--- | :--- |
+| `COPY` 로 개별 파일만 지정 (이 프로젝트) | 전송량 측면에서는 거의 무의미 |
+| **`COPY . .` 로 통째 복사** | **필수.** `.git`·`node_modules`·비밀 파일이 전부 이미지에 들어간다 |
+| 레거시 빌더(`DOCKER_BUILDKIT=0`) | 필수. 컨텍스트를 통째로 먼저 보낸다 |
+| 비밀 파일 유출 방지 | 필수. 실수로 `COPY` 될 여지 자체를 없앤다 |
+
+즉 `.dockerignore` 의 요즘 값어치는 "전송량 절약"보다 **"실수로 들어가면 안 되는 것을 원천 차단"** 쪽에 있다.
 
 ### 디렉토리 구조 설계와의 연결
 
@@ -537,12 +560,9 @@ COPY . .
 
 원칙: **자주 바뀌는 것을 뒤에 둔다.**
 
-보고서 17-4의 재빌드에서 캐시가 동작한 실제 기록이다.
+위 ⑧에서 본 2차 빌드 로그가 이 원칙이 동작하는 모습이다. 바뀐 레이어(`default.conf.template`)부터 다시 실행되고, 그 앞은 `CACHED` 로 재사용된다.
 
-```
-#6 [web 2/3] COPY index.html ...            CACHED    ← 안 바뀜
-#7 [web 3/3] COPY default.conf.template ... DONE      ← 바뀌어서 재실행
-```
+> 보고서 17-4에는 빌드 로그가 없다. 그쪽은 **재빌드 없이** 환경 변수만으로 포트를 바꾸는 시연이라, 오히려 "이미지가 다시 만들어지지 않았다"는 것이 증거다.
 
 ---
 
@@ -879,11 +899,13 @@ docker images my-web
 > COPY . .                 # 자주 바뀜 → 나중
 > ```
 
-실습에서도 캐시 동작을 확인했다.
+이 프로젝트 Dockerfile로도 확인된다. `index.html` 은 두고 템플릿만 고쳐 다시 빌드하면:
 
 ```
-#6 [web 2/3] COPY index.html ...                #6 CACHED   ← 안 바뀜
-#7 [web 3/3] COPY default.conf.template ...     #7 DONE     ← 바뀜
+#6 [2/3] COPY index.html /usr/share/nginx/html/index.html
+#6 CACHED                                        ← 안 바뀜
+#7 [3/3] COPY default.conf.template /etc/nginx/templates/default.conf.template
+#7 DONE 0.0s                                     ← 바뀜
 ```
 
 ---
