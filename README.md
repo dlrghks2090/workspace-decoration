@@ -89,54 +89,19 @@
 
       $ touch empty.txt
       $ ls -l empty.txt
-      -rw-r--r--@ 1 ****  staff  0 Aug 10 19:01 empty.txt
-
-      $ cat empty.txt
-
-  크기가 `0` 이고 `cat` 출력이 비어 있다. 내용 없이 파일만 만들 때 쓴다.
-
-- **여러 파일 동시 생성 (touch)**
-
-      $ touch a.txt b.txt c.txt
-      $ ls
-      a.txt
-      b.txt
-      c.txt
-      empty.txt
-
-- **기존 파일에 touch 실행 시 동작 확인**
-
-      $ echo "내용 있음" > exist.txt
-      $ ls -lT exist.txt
-      -rw-r--r--@ 1 ****  staff  14 Aug 10 19:01:58 2026 exist.txt
-
-      $ touch exist.txt
-      $ ls -lT exist.txt
-      -rw-r--r--@ 1 ****  staff  14 Aug 10 19:02:11 2026 exist.txt
-
-      $ cat exist.txt
-      내용 있음
-
-  수정 시각만 `19:01:58` → `19:02:11` 로 갱신되고 **크기(14바이트)와 내용은 그대로**다. `touch` 는 파일이 없으면 만들고, 있으면 시각만 갱신한다. 기존 내용을 지우지 않는다.
+      -rw-r--r--@ 1 ****  staff  0 Aug 10 19:06 empty.txt
 
 - **내용을 넣어 파일 생성 (리다이렉션)**
 
       $ echo "Terminal Practice" > memo.txt
       $ ls
+      empty.txt
       memo.txt
 
 - **파일 내용 확인**
 
       $ cat memo.txt
       Terminal Practice
-
-> 파일 생성 방법 비교 — `touch` 는 빈 파일을 만들고, `>` 는 내용을 넣어 만든다. **`>` 는 기존 파일이 있으면 내용을 통째로 덮어쓰므로**, 파일만 만들거나 수정 시각만 갱신하려는 목적이라면 `touch` 를 써야 안전하다.
->
-> | 명령 | 파일이 없을 때 | 파일이 있을 때 |
-> | :--- | :--- | :--- |
-> | `touch a.txt` | 빈 파일 생성 | 수정 시각만 갱신 (내용 유지) |
-> | `echo "x" > a.txt` | 내용을 넣어 생성 | **기존 내용 삭제 후 덮어씀** |
-> | `echo "x" >> a.txt` | 내용을 넣어 생성 | 기존 내용 뒤에 이어 붙임 |
 
 - **파일 복사**
 
