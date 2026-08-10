@@ -28,14 +28,99 @@ Docker는 **애플리케이션과 그것이 필요로 하는 환경을 통째로
   무겁고 느림 (GB, 분)       가볍고 빠름 (MB, 초)
 ```
 
-컨테이너는 **호스트의 커널을 공유**하고 프로세스 수준에서만 격리한다. 그래서 가볍다. 보고서 9번에서 ubuntu 컨테이너에 진입했을 때 `Ubuntu 26.04` 가 떴지만, 실제로는 macOS 커널... 이 아니라 Docker Desktop이 띄운 리눅스 VM의 커널을 쓴다. macOS는 리눅스 커널이 없어서 Docker Desktop이 경량 VM을 하나 돌리기 때문이다.
+컨테이너는 **호스트의 커널을 공유**하고 프로세스 수준에서만 격리한다. 그래서 가볍다.
 
-이것이 보고서 7번의 출력에서 드러난다.
+### "호스트"가 무엇인지부터 정해야 한다
+
+이 문장은 macOS에서 곧바로 헷갈린다. macOS에는 리눅스 커널이 없는데 리눅스 컨테이너가 돌아가기 때문이다. 그렇다고 컨테이너가 macOS 커널을 쓰는 것도 아니다.
+
+모순처럼 보이지만 아니다. **"호스트"라는 말이 두 층을 가리킬 수 있어서 생기는 혼동이다.**
+
+여기서 호스트란 **컨테이너 런타임(Docker 데몬)이 도는 머신**을 뜻한다. 그래서 환경에 따라 층이 달라진다.
+
+| | Linux | macOS / Windows |
+| :--- | :--- | :--- |
+| 물리 머신 | 내 PC | 내 Mac |
+| 컨테이너의 **호스트** | **내 PC** (같음) | **Docker Desktop이 띄운 리눅스 VM** |
+| 공유되는 커널 | 내 PC의 리눅스 커널 | **VM의 리눅스 커널** |
+
+Linux에서는 두 층이 하나로 겹쳐서 구분할 일이 없다. macOS에서는 갈라진다. macOS에 리눅스 커널이 없으니 Docker Desktop이 경량 리눅스 VM을 하나 돌리고, **컨테이너는 그 VM 안에서 실행된다.** 컨테이너 입장에서 호스트는 macOS가 아니라 그 VM이다.
+
+즉 규칙("호스트 커널을 공유한다")은 그대로다. 무엇이 호스트인지가 한 층 옮겨갈 뿐이다.
+
+### 실측으로 확인하기
+
+세 곳의 커널을 나란히 찍어 보면 분명해진다.
+
+```bash
+uname -s -r                          # ① macOS 자신
+# Darwin 25.5.0
+
+docker run --rm ubuntu uname -s -r   # ② ubuntu 컨테이너 안
+# Linux 6.10.11-linuxkit
+
+docker run --rm nginx uname -s -r    # ③ nginx(debian) 컨테이너 안
+# Linux 6.10.11-linuxkit
+
+docker info --format '{{.KernelVersion}}'   # ④ Docker 데몬이 보고하는 커널
+# 6.10.11-linuxkit
+```
+
+여기서 네 가지가 한 번에 읽힌다.
+
+1. **컨테이너는 macOS 커널을 쓰지 않는다.** `Darwin` 과 `Linux` 는 아예 다른 커널이다.
+2. **②③④가 모두 `6.10.11-linuxkit` 으로 같다.** 이것이 곧 "커널을 공유한다"의 실체다. 서로 다른 두 컨테이너가 같은 커널 하나를 함께 쓰고 있다.
+3. 그 커널은 **Docker 데몬이 도는 곳의 커널**이다(④와 일치). 데몬은 VM 안에 있으므로 그 커널이 VM의 커널이다.
+4. 이름의 `linuxkit` 이 정체를 드러낸다. LinuxKit은 **Docker Desktop이 VM을 만들 때 쓰는 경량 리눅스**다. Ubuntu의 커널도 Debian의 커널도 아니다.
+
+### 그러면 컨테이너 안의 `Ubuntu 26.04` 는 무엇인가
+
+보고서 9번에서 ubuntu 컨테이너에 진입했을 때 `Ubuntu 26.04 LTS` 가 떴다. 커널은 리눅스킷인데 왜 우분투라고 나올까.
+
+**리눅스 배포판은 "커널 + 유저랜드"인데, 컨테이너 이미지에는 유저랜드만 들어 있기 때문이다.**
+
+```bash
+docker run --rm ubuntu sh -c 'grep PRETTY_NAME /etc/os-release'
+# PRETTY_NAME="Ubuntu 26.04 LTS"
+
+docker run --rm nginx sh -c 'grep PRETTY_NAME /etc/os-release'
+# PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+```
+
+두 컨테이너가 서로 다른 배포판이라고 말하지만, 앞에서 봤듯 **커널은 둘 다 `6.10.11-linuxkit` 으로 같다.**
+
+| 구성 요소 | 어디서 오는가 |
+| :--- | :--- |
+| `/etc/os-release`, `apt`, `bash`, 라이브러리 | **이미지** (배포판마다 다름) |
+| 커널 (시스템 콜, 스케줄러, 파일시스템, 네트워크 스택) | **호스트 하나를 공유** (모든 컨테이너가 동일) |
+
+`/etc/os-release` 는 그냥 텍스트 파일이다. 배포판이 자기 이름을 적어둔 것일 뿐, 커널이 무엇인지와는 무관하다. **커널을 알고 싶으면 `uname -r` 을 봐야 한다.**
+
+이 구조에서 두 가지가 따라 나온다.
+
+- **이미지가 가벼운 이유**: 커널을 담지 않아도 되니 수십~수백 MB로 끝난다. VM 이미지가 GB 단위인 것과 대비된다.
+- **리눅스 컨테이너가 macOS에서 그냥은 못 도는 이유**: 이미지 안의 프로그램은 리눅스 시스템 콜을 호출하는데 Darwin 커널은 그걸 모른다. 그래서 리눅스 커널을 가진 VM이 반드시 하나 필요하다.
+
+### 보고서 7번의 출력이 이 구조를 보여준다
 
 ```
 Client:  OS/Arch: darwin/arm64    ← 명령을 치는 쪽 = macOS
-Server:  OS/Arch: linux/arm64     ← 실제 컨테이너가 도는 쪽 = 리눅스
+Server:  OS/Arch: linux/arm64     ← 데몬과 컨테이너가 도는 쪽 = VM 안의 리눅스
 ```
+
+같은 머신에서 친 한 명령의 출력인데 OS가 둘로 갈린다. **CLI는 macOS에, 데몬은 리눅스 VM에** 있다는 뜻이다. 컨테이너는 후자에서 돈다.
+
+> 정리하면 macOS에서의 층은 이렇다.
+>
+> ```
+> 컨테이너 (Ubuntu 유저랜드)  ← /etc/os-release 가 "Ubuntu" 라고 말하는 층
+>      ↕ 시스템 콜
+> 리눅스 VM 커널 6.10.11-linuxkit   ← 실제로 공유되는 커널. 컨테이너의 "호스트"
+>      ↕ 가상화 (Virtualization.framework)
+> macOS Darwin 25.5.0              ← 물리 머신. 컨테이너와 직접 닿지 않는다
+> ```
+>
+> Linux에서는 가운데 층이 없어 `컨테이너 → 호스트 커널` 두 층으로 끝난다.
 
 ---
 
@@ -460,6 +545,21 @@ docker ps -a
 > ```
 >
 > 그래서 macOS에서는 `systemctl status docker` 같은 systemd 명령이 통하지 않습니다.
+>
+> **"컨테이너는 호스트 커널을 공유한다면서 macOS 커널을 쓰는 것이냐"** 고 되물으면 이렇게 답합니다. 규칙은 그대로이고, **호스트가 macOS가 아니라 그 리눅스 VM**입니다. 컨테이너 입장에서 자신을 실행해 주는 머신이 VM이기 때문입니다. Linux에서는 물리 머신과 호스트가 겹쳐서 구분할 일이 없지만 macOS에서는 한 층 갈라집니다.
+>
+> 커널을 직접 찍어 보면 분명합니다.
+>
+> ```bash
+> uname -r                                   # Darwin 25.5.0      (macOS)
+> docker run --rm ubuntu uname -r            # 6.10.11-linuxkit
+> docker run --rm nginx  uname -r            # 6.10.11-linuxkit
+> docker info --format '{{.KernelVersion}}'  # 6.10.11-linuxkit
+> ```
+>
+> 서로 다른 두 컨테이너와 데몬이 **모두 같은 커널 하나**를 가리키고, macOS의 Darwin과는 다릅니다. 이름의 `linuxkit` 이 Docker Desktop의 VM 커널이라는 표시입니다.
+>
+> 이어서 *"그럼 컨테이너 안의 `Ubuntu 26.04` 는 뭐냐"* 고 물으면 **배포판 = 커널 + 유저랜드인데 이미지에는 유저랜드만 들어 있다**고 답합니다. `/etc/os-release` 는 배포판이 자기 이름을 적어둔 텍스트 파일일 뿐이라, 커널을 알려면 `uname -r` 을 봐야 합니다. 위에서 ubuntu와 nginx(debian)가 서로 다른 배포판을 표시하면서 커널은 같았던 것이 그 증거입니다.
 
 ---
 
