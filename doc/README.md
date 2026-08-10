@@ -42,7 +42,7 @@
 | :--- | :--- | :--- |
 | [07. Docker Compose](07-docker-compose.md) | 선언형 실행, 서비스 디스커버리 | 17-1~17-3 |
 | [08. 환경 변수와 설정 분리](08-environment-variables.md) | 주입 경로, 우선순위, 12-factor | 17-4 |
-| [09. Git과 GitHub](09-git-github.md) | 3단계 영역, 원격 저장소 | 13번 |
+| [09. Git과 GitHub](09-git-github.md) | 3단계 영역, 원격 저장소 | 12번 |
 | [10. SSH 인증](10-ssh-authentication.md) | 공개키 암호, 키 관리 | 17-5 |
 
 ### 4부 — 문제 해결

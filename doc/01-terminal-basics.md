@@ -104,16 +104,70 @@ pwd
 
 ### ls — 목록 보기
 
+`ls` 는 옵션에 따라 완전히 다른 도구가 된다. 기본형은 이름만 나열한다.
+
 ```bash
-ls              # 이름만
-ls -l           # 상세 정보 (권한, 소유자, 크기, 시각)
-ls -a           # 숨김 파일 포함 (.으로 시작하는 파일)
-ls -la          # 둘 다
-ls -lh          # 크기를 사람이 읽기 좋게 (1.2K, 3.4M)
-ls -d kan       # 디렉토리 자체 정보 (내용물이 아니라)
+ls
+# Dockerfile
+# README.md
+# doc
+# docker-compose.yml
+# index.html
 ```
 
-**`-d` 가 중요한 이유**
+#### 옵션은 붙여 쓸 수 있다
+
+`-` 뒤의 한 글자가 옵션 하나이며, 여러 개를 이어 붙여도 된다.
+
+```bash
+ls -l -a -h     # 이렇게 쓰든
+ls -lah         # 이렇게 쓰든 완전히 같다
+```
+
+순서도 상관없다. `-alh`, `-hal` 모두 동일하게 동작한다. 그래서 실무에서는 `ls -la`, `ls -lh` 처럼 붙여 쓴 형태만 보게 된다.
+
+#### 핵심 3개
+
+| 옵션 | 이름 | 효과 |
+| :--- | :--- | :--- |
+| `-l` | long | 한 줄에 권한·소유자·크기·시각까지 |
+| `-a` | all | 숨김 파일(`.` 으로 시작) 포함 |
+| `-d` | directory | 디렉토리의 **내용물이 아니라 자기 자신** |
+
+```bash
+ls -l
+# total 144
+# -rw-r--r--@  1 kim  staff    822 Aug  5 19:24 Dockerfile
+# -rw-r--r--@  1 kim  staff  54184 Aug 10 20:36 README.md
+# drwxr-xr-x@ 15 kim  staff    480 Aug 10 20:36 doc
+```
+
+> `-l` 출력의 각 열이 무슨 뜻인지(맨 앞 `d`/`-`, 9글자 권한, 하드링크 수, 크기 단위)는 [02. 파일 권한](02-file-permissions.md)의 "`ls -l` 출력 해부"에서 자세히 다룬다. 여기서는 옵션만 본다.
+
+#### `-a` — 숨김 파일은 "속성"이 아니라 "이름 규칙"
+
+```bash
+ls
+# Dockerfile  README.md  doc  docker-compose.yml  index.html
+
+ls -a
+# .              ← 현재 디렉토리 자신
+# ..             ← 상위 디렉토리
+# .env           ← 여기부터가 숨김 파일
+# .env.example
+# .git
+# .gitignore
+# Dockerfile
+# ...
+```
+
+Unix에서 숨김 파일은 특별한 플래그가 붙은 게 아니다. **이름이 `.` 으로 시작하면 `ls` 가 기본적으로 안 보여줄 뿐이다.** 설정 파일에 점을 붙이는 관습이 여기서 나왔다.
+
+맨 위의 `.` 과 `..` 도 실재하는 항목이다. `cd ..` 이 위로 올라가는 이유가 이것이다. 이 둘까지 빼고 보려면 대문자 `-A` 를 쓴다.
+
+실습에서 다룬 `.env`, `.gitignore` 가 전부 여기 해당한다. `ls` 만 치고 "파일이 없네" 하면 안 되는 이유다.
+
+#### `-d` 가 중요한 이유
 
 ```bash
 ls workspace
@@ -124,6 +178,80 @@ ls -d workspace
 ```
 
 권한을 확인할 때 `ls -l workspace` 를 치면 안의 파일들 권한이 나온다. 디렉토리 자신의 권한을 보려면 `ls -ld workspace` 를 써야 한다. 보고서 6번에서 이 차이를 썼다.
+
+존재 여부만 확인할 때도 `-d` 가 편하다. 디렉토리가 있으면 이름 한 줄, 없으면 에러가 나온다.
+
+```bash
+ls -d kan
+# ls: kan: No such file or directory
+```
+
+#### 나머지 옵션
+
+| 옵션 | 이름 | 효과 |
+| :--- | :--- | :--- |
+| `-h` | human-readable | 크기를 `822B`, `53K`, `1.2M` 로. **`-l` 과 함께 써야 의미가 있다** |
+| `-t` | time | 수정 시각 최신순 정렬 (기본은 이름순) |
+| `-r` | reverse | 정렬 순서를 뒤집는다 |
+| `-S` | Size | 크기 큰 순 |
+| `-F` | Format | 이름 뒤에 종류 기호 — 디렉토리 `/`, 실행파일 `*`, 링크 `@` |
+| `-R` | Recursive | 하위 디렉토리까지 전부 훑는다 |
+| `-A` | Almost all | `-a` 에서 `.` 과 `..` 만 제외 |
+| `-1` | one | 한 줄에 하나씩 (숫자 1). 파이프로 넘길 때 |
+| `-i` | inode | 아이노드 번호 표시 |
+
+`-h` 의 효과:
+
+```bash
+ls -l README.md
+# -rw-r--r--@ 1 kim  staff  54184 Aug 10 20:36 README.md
+
+ls -lh README.md
+# -rw-r--r--@ 1 kim  staff    53K Aug 10 20:36 README.md
+```
+
+`-F` 는 `-l` 없이도 종류를 구분하게 해준다:
+
+```bash
+ls -F
+# Dockerfile
+# README.md
+# doc/                  ← 슬래시가 붙은 것이 디렉토리
+# docker-compose.yml
+```
+
+#### 굳어진 조합
+
+| 조합 | 쓰는 상황 |
+| :--- | :--- |
+| `ls -la` | **가장 흔한 조합.** 숨김 파일까지 전부 상세히 |
+| `ls -lh` | 파일 크기를 눈으로 가늠할 때 |
+| `ls -lt` | "방금 뭘 고쳤더라" — 최근 수정 파일 찾기 |
+| `ls -ltr` | 최신이 **맨 아래**로. 로그 디렉토리에서 유용 |
+| `ls -ld <디렉토리>` | 디렉토리 자체의 권한 확인 |
+
+```bash
+ls -lt
+# total 144
+# -rw-r--r--@  1 kim  staff  54184 Aug 10 20:36 README.md    ← 방금 고친 것이 맨 위
+# drwxr-xr-x@ 15 kim  staff    480 Aug 10 20:36 doc
+# -rw-r--r--@  1 kim  staff    252 Aug  5 19:28 default.conf.template
+```
+
+#### 걸리기 쉬운 세 가지
+
+**1. `-h` 를 단독으로 쓰면 아무 일도 안 일어난다.** 크기가 보이는 건 `-l` 덕분이다. `ls -h` 가 아니라 `ls -lh` 여야 한다.
+
+**2. `-l` 첫 줄의 `total 144` 는 파일 개수가 아니다.** 디스크 블록 수이고 단위는 macOS 기본 512바이트다. 파일이 몇 개인지와는 무관하다.
+
+**3. `ls -r` 과 `rm -r` 의 `-r` 은 다른 뜻이다.**
+
+| 명령 | `-r` | 의미 |
+| :--- | :--- | :--- |
+| `rm -r` | recursive | 하위까지 재귀 삭제 |
+| `ls -r` | **reverse** | 정렬 역순 |
+
+`ls` 에서 재귀는 대문자 `-R` 이다. 같은 글자가 명령마다 다른 뜻을 갖는 대표적인 예이므로, 옵션은 명령별로 익혀야 한다.
 
 ### cd — 이동
 
@@ -353,14 +481,14 @@ command 2>/dev/null      # 에러 메시지 버리기
 앞 명령의 출력을 뒤 명령의 입력으로 넘긴다.
 
 ```bash
-docker info | grep "Server Version"
-#            └─ docker info의 출력에서 해당 줄만 골라냄
+docker volume ls | grep my-vol
+#                └─ docker volume ls의 출력에서 해당 줄만 골라냄
 
 docker images | head -5
 ls -l | wc -l
 ```
 
-보고서 7번의 `docker info | grep "Server Version"` 이 이 형태다. `docker info` 는 수십 줄을 뱉는데 그중 한 줄만 필요하므로 `grep` 으로 걸렀다.
+보고서 11번의 `docker volume ls | grep my-vol`, 17-4의 `docker compose exec web env | grep -E "NGINX_PORT|APP_MODE"` 가 이 형태다. 앞 명령이 여러 줄을 뱉는데 그중 일부만 필요하므로 `grep` 으로 걸렀다.
 
 ---
 
@@ -541,11 +669,26 @@ ls -d practice     # "No such file or directory" 가 나오면 성공
 > `>` 는 출력을 **파일**로 보내고, `|` 는 출력을 **다음 명령의 입력**으로 넘깁니다.
 >
 > ```bash
-> docker info > out.txt              # 파일에 저장
-> docker info | grep "Server"        # grep 에게 넘김
+> docker volume ls > out.txt              # 파일에 저장
+> docker volume ls | grep my-vol          # grep 에게 넘김
 > ```
 >
-> 실습에서 `docker info | grep "Server Version"` 을 쓴 게 후자입니다. 긴 출력에서 필요한 줄만 뽑을 때 씁니다.
+> 보고서 11번의 `docker volume ls | grep my-vol` 과 17-4의 `docker compose exec web env | grep -E "NGINX_PORT|APP_MODE"` 가 후자입니다. 긴 출력에서 필요한 줄만 뽑을 때 씁니다.
+
+---
+
+#### B-9. `ls -r` 과 `rm -r` 의 `-r` 은 같은 뜻인가?
+
+> **아닙니다.** 글자만 같고 의미가 다릅니다.
+>
+> | 명령 | `-r` | 의미 |
+> | :--- | :--- | :--- |
+> | `rm -r` | recursive | 하위까지 재귀 삭제 |
+> | `ls -r` | **reverse** | 정렬 역순 |
+>
+> `ls` 에서 재귀는 대문자 `-R` 입니다. 옵션 글자는 명령 안에서만 의미가 정해지므로 명령별로 익혀야 합니다.
+>
+> 자주 쓰는 `ls -ltr` 이 이 조합입니다. `-l` 상세 + `-t` 시각순 + `-r` 역순이라 **가장 최근 파일이 맨 아래**에 옵니다. 로그가 쌓이는 디렉토리에서 화면 끝만 보면 되니 편합니다.
 
 ---
 
@@ -581,7 +724,9 @@ ls -d practice     # "No such file or directory" 가 나오면 성공
 | :--- | :--- |
 | 절대 vs 상대 | 실행 위치가 바뀌어도 같은 곳이면 절대, 프로젝트와 함께 움직이면 상대 |
 | `mv` | 이동과 이름 변경은 파일시스템에서 같은 작업 |
+| `ls -l` / `-a` / `-d` | 상세 / 숨김 포함 / 디렉토리 자체. `-d` 없이는 안이 열린다 |
 | `rm -r` | 디렉토리 삭제 의사를 명시하게 하는 안전장치 |
+| `-r` 의 함정 | `rm -r` 은 재귀, `ls -r` 은 역순. `ls` 의 재귀는 `-R` |
 | 삭제 권한 | 파일이 아니라 **부모 디렉토리**의 `w` |
 | 무응답 | 성공하면 조용한 게 정상 |
 

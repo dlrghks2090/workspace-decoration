@@ -89,7 +89,7 @@
 
       $ touch empty.txt
       $ ls -l empty.txt
-      -rw-r--r--@ 1 ****  staff  0 Aug 10 19:06 empty.txt
+      -rw-r--r--@ 1 ****  staff  0 Aug 10 20:32 empty.txt
 
 - **내용을 넣어 파일 생성 (리다이렉션)**
 
@@ -108,6 +108,7 @@
       $ cp memo.txt backup.txt
       $ ls
       backup.txt
+      empty.txt
       memo.txt
 
 - **파일 이름 변경 (mv)**
@@ -115,6 +116,7 @@
       $ mv memo.txt notes.txt
       $ ls
       backup.txt
+      empty.txt
       notes.txt
 
 - **파일을 다른 디렉토리로 이동 (mv)**
@@ -124,33 +126,22 @@
       $ ls archive
       notes.txt
 
+      $ ls
+      archive
+      backup.txt
+      empty.txt
+
 - **파일 삭제**
 
-      $ rm backup.txt
+      $ rm backup.txt empty.txt
       $ ls
       archive
-
-- **디렉토리 이름 변경 (mv)**
-
-      $ ls
-      archive
-      note.txt
-      workspace
-
-      $ mv archive archive-old
-      $ ls
-      archive-old
-      note.txt
-      workspace
-
-  > 위 목록의 `note.txt` 와 `workspace` 는 6번 권한 실습에서 만든 파일이다. 이 단계를 권한 실습 이후에 수행했기 때문에 함께 보인다.
 
 - **디렉토리 삭제 (rm -r)**
 
-      $ rm -r archive-old
+      $ rm -r archive
       $ ls
-      note.txt
-      workspace
+      (출력 없음 — 디렉토리가 비었다)
 
 - **실습 디렉토리 전체 정리**
 
@@ -159,9 +150,7 @@
       $ ls -d kan
       ls: kan: No such file or directory
 
-> `mv` 는 같은 디렉토리 안에서 쓰면 이름 변경, 다른 디렉토리를 대상으로 쓰면 이동으로 동작하며, 파일과 디렉토리 모두에 같은 방식으로 적용된다. 네 경우를 모두 기록했다.
->
-> 디렉토리 삭제에는 `-r`(recursive) 옵션이 필요하다. `rm` 만 쓰면 디렉토리는 지워지지 않는데, 내부에 파일이 남아 있을 수 있어 실수로 통째로 지우는 것을 막기 위한 안전장치다.
+> `mv` 는 같은 디렉토리 안에서 쓰면 이름 변경(`memo.txt` → `notes.txt`), 다른 디렉토리를 대상으로 쓰면 이동(`notes.txt` → `archive/`)이 된다. 디렉토리를 지울 때는 `-r` 옵션이 필요하다 (개념 설명은 `doc/01-terminal-basics.md` 참고).
 
 ---
 
@@ -188,12 +177,6 @@
 
       $ ls -ld workspace
       drwx------@ 2 ****  staff  64 Aug  5 19:23 workspace
-
-- **숫자 표기와 문자 표기 대조**
-
-      $ stat -f "%Sp %OLp %N" note.txt workspace
-      -rw------- 600 note.txt
-      drwx------ 700 workspace
 
 | 대상 | 변경 전 | 변경 후 | 의미 |
 | :--- | :--- | :--- | :--- |
@@ -269,6 +252,10 @@
       REPOSITORY   TAG       IMAGE ID       CREATED        SIZE
       nginx        latest    640dee81b9ad   10 hours ago   256MB
 
+  > 이 시점에는 `nginx` 만 받아 둔 상태다. 이후 9~10번에서 `hello-world`·`ubuntu`·`my-web:v1` 이 추가된다.
+
+> **여기서부터는 실습을 모두 마친 뒤의 기록이다.** 컨테이너 정리는 만들고 쓴 다음에야 할 수 있으므로, 아래 로그·목록·삭제는 9번(hello-world, ubuntu), 10번(`my-app`), 15-2(`my-app2`)를 끝낸 상태에서 수행했다. 루브릭이 "목록 확인 및 정리 흔적"을 한 항목으로 묶어 묻기에 이 섹션에 함께 실었다.
+
 - **컨테이너 로그 확인**
 
       $ docker logs my-app
@@ -343,14 +330,7 @@
        4. The Docker daemon streamed that output to the Docker client, which sent it
           to your terminal.
 
-      To try something more ambitious, you can run an Ubuntu container with:
-       $ docker run -it ubuntu bash
-
-      Share images, automate workflows, and more with a free Docker ID:
-       https://hub.docker.com/
-
-      For more examples and ideas, visit:
-       https://docs.docker.com/get-started/
+      (이하 Docker Hub 가입 안내 및 문서 링크 생략)
 
 > 로컬에 이미지가 없으면(`Unable to find image ... locally`) Docker가 자동으로 레지스트리에서 받아온 뒤 실행한다는 것을 확인했다.
 
@@ -534,7 +514,40 @@
 
 ---
 
-## 12. 재현 절차 (포트/볼륨)
+## 12. Git 설정 및 GitHub 연동
+> **수행 내용**: 사용자 정보 및 원격 저장소 확인
+
+- **Git 사용자 정보 확인**
+
+      $ git config --list | grep -E "^user\.|^remote\."
+      user.name=Kim IkHwan
+      user.email=****@gmail.com
+      remote.origin.url=https://github.com/dlrghks2090/workspace-decoration.git
+      remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+
+- **GitHub 원격 저장소 확인**
+
+      $ git remote -v
+      origin	https://github.com/dlrghks2090/workspace-decoration.git (fetch)
+      origin	https://github.com/dlrghks2090/workspace-decoration.git (push)
+
+- **브랜치와 원격 추적 상태 확인**
+
+      $ git branch -vv
+      * main 34fe843 [origin/main] Feat: README.md 파일 생성 및 초안 작성
+
+- **커밋 이력 확인**
+
+      $ git log --oneline
+      34fe843 Feat: README.md 파일 생성 및 초안 작성
+      2c4445a Feat: 프로젝트 생성 및 READEME.md 초안 작성
+      f482988 Initial commit
+
+> `[origin/main]` 표시는 로컬 `main` 브랜치가 원격 `origin/main` 을 추적하도록 연동됐다는 뜻이다.
+
+---
+
+## 13. 재현 절차 (포트/볼륨)
 > **수행 내용**: 제3자가 동일한 결과를 재현할 수 있도록 설정을 표와 명령 시퀀스로 고정
 
 ### 포트 매핑 규칙
@@ -585,39 +598,6 @@
 
 ---
 
-## 13. Git 설정 및 GitHub 연동
-> **수행 내용**: 사용자 정보 및 원격 저장소 확인
-
-- **Git 사용자 정보 확인**
-
-      $ git config --list | grep -E "^user\.|^remote\."
-      user.name=Kim IkHwan
-      user.email=****@gmail.com
-      remote.origin.url=https://github.com/dlrghks2090/workspace-decoration.git
-      remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
-
-- **GitHub 원격 저장소 확인**
-
-      $ git remote -v
-      origin	https://github.com/dlrghks2090/workspace-decoration.git (fetch)
-      origin	https://github.com/dlrghks2090/workspace-decoration.git (push)
-
-- **브랜치와 원격 추적 상태 확인**
-
-      $ git branch -vv
-      * main 34fe843 [origin/main] Feat: README.md 파일 생성 및 초안 작성
-
-- **커밋 이력 확인**
-
-      $ git log --oneline
-      34fe843 Feat: README.md 파일 생성 및 초안 작성
-      2c4445a Feat: 프로젝트 생성 및 READEME.md 초안 작성
-      f482988 Initial commit
-
-> `[origin/main]` 표시는 로컬 `main` 브랜치가 원격 `origin/main` 을 추적하도록 연동됐다는 뜻이다.
-
----
-
 ## 14. 핵심 기술 원리
 
 ### 14-1. 이미지와 컨테이너의 차이 (빌드 / 실행 / 변경 관점)
@@ -636,7 +616,7 @@
 
 **접속할 수 없는 이유**: 컨테이너는 자체 네트워크 네임스페이스를 가지며 호스트와 분리된 사설 IP를 부여받는다. 호스트 입장에서 `localhost:80` 은 호스트 자신의 80번 포트일 뿐, 컨테이너의 80번 포트가 아니다. 둘은 애초에 다른 네트워크 공간에 있다.
 
-**실습 근거**: 8번의 nginx 액세스 로그에서 접속 출처 IP가 갈린다.
+**실습 근거**: 17-2의 nginx 액세스 로그에서 접속 출처 IP가 갈린다.
 
       172.18.0.3 - - [...] "GET / HTTP/1.1" 200 23 "-" "curl/8.21.0"    ← 같은 네트워크의 client 컨테이너
       172.18.0.1 - - [...] "GET / HTTP/1.1" 200 23 "-" "curl/8.7.1"     ← 호스트(게이트웨이)를 거쳐 들어온 요청
@@ -793,40 +773,22 @@
       $ ssh-keygen -lf ~/.ssh/id_ed25519.pub
       256 SHA256:McCE60hNY/KM/r+GbuS1N9ScwfZClRge96AnzP9xSo8 ****@gmail.com (ED25519)
 
-      $ wc -l < ~/.ssh/id_ed25519.pub
-             1
-      $ cut -d' ' -f1 < ~/.ssh/id_ed25519.pub
-      ssh-ed25519
-
-  `ssh-keygen -lf` 가 지문을 정상 출력했다. 파일은 1줄짜리 유효한 OpenSSH 공개키다. 따라서 파일 문제가 아니다.
+  `ssh-keygen -lf` 는 파일을 공개키로 파싱해야 지문을 낼 수 있다. 지문이 정상 출력됐으므로 파일은 유효하다. 따라서 파일 문제가 아니다.
 
 - **가설 2 — 붙여넣은 내용이 공개키가 아니었을 것이다.** 실제 원인이었다. 등록 필드에 공개키 원문 대신 **지문(`SHA256:...`)** 을 붙여넣었다. 지문은 공개키를 해시한 요약값이라 키 자체로 쓸 수 없다.
 
 - **조치**: 공개키 원문을 다시 복사해 등록했다.
 
       $ pbcopy < ~/.ssh/id_ed25519.pub
-      $ pbpaste | cut -d' ' -f1
-      ssh-ed25519
 
 - **결과**: 등록 후 인증 성공 (17-5 참고)
 
       $ ssh -T git@github.com
       Hi dlrghks2090! You've successfully authenticated, but GitHub does not provide shell access.
 
-- **배운 점**: 공개키와 지문은 용도가 다르다. 지문은 "이 키가 내가 아는 그 키가 맞는지" **대조**할 때 쓰고, 등록에는 `ssh-ed25519 AAAA...` 로 시작하는 원문 한 줄을 쓴다. 같은 오류가 났을 때 점검 순서는 ① `ssh-keygen -lf` 로 파일 유효성 확인 → ② 붙여넣은 값이 `ssh-` 로 시작하는지 확인 → ③ Title 칸과 Key 칸이 바뀌지 않았는지 확인이다.
+- **배운 점**: 공개키와 지문은 용도가 다르다. 지문은 "이 키가 내가 아는 그 키가 맞는지" **대조**할 때 쓰고, 등록에는 `ssh-ed25519 AAAA...` 로 시작하는 원문 한 줄을 쓴다. 틀린 가설 1도 지운 게 아니라 남겼다. "파일은 정상"이라는 확인 자체가 원인을 좁힌 단계이기 때문이다.
 
-### 15-6. [Linux 환경 참고] Docker 권한 거부
-
-이번 실습 환경은 macOS라 발생하지 않았으나, Linux에서 자주 만나는 문제라 참고로 기록한다.
-
-- **현상**: `permission denied while trying to connect to the Docker daemon socket`
-- **원인**: Linux에서 Docker 소켓은 `docker` 그룹 소유이며, 해당 그룹에 속하지 않은 사용자는 접근할 수 없다.
-- **조치**
-
-      $ sudo usermod -aG docker $USER
-
-  이후 로그아웃/로그인 또는 `newgrp docker` 로 그룹 변경을 적용한다.
-- **macOS와의 차이**: macOS의 Docker Desktop은 사용자 홈 아래(`~/.docker/run/docker.sock`)에 소켓을 두므로 이 문제가 발생하지 않는다. 15-1처럼 "데몬이 꺼져 있음"이 훨씬 흔한 원인이다.
+> 위 5건은 모두 이번 실습에서 실제로 겪은 사례다. 겪지 않았지만 Linux에서 흔한 소켓 권한 거부(`permission denied ... docker.sock`)는 `doc/11-troubleshooting.md` 에 참고로 분리해 두었다.
 
 ---
 
@@ -944,11 +906,9 @@
 ### 17-3. Compose 운영 명령어 습득
 > **수행 내용**: `up` / `ps` / `logs` / `down` 으로 실행·상태·로그·종료 관리
 
-- **실행 (up)**
+- **실행 (up)** — 출력은 17-1·17-2와 같다
 
       $ docker compose up -d
-       Container workspace-decoration-web-1  Started
-       Container workspace-decoration-client-1  Started
 
 - **상태 확인 (ps)**
 
@@ -960,12 +920,11 @@
 
 - **로그 확인 (logs)**
 
-      $ docker compose logs client
-      client-1  | <h1>hello, world!</h1>
-
       $ docker compose logs --tail 5 web
       web-1  | 2026/08/05 10:29:19 [notice] 1#1: start worker process 46
       web-1  | 172.18.0.3 - - [...] "GET / HTTP/1.1" 200 23 "-" "curl/8.21.0" "-"
+
+  > 종료된 컨테이너의 로그도 `docker compose logs client` 로 볼 수 있다 (출력은 17-2 참고). 로그는 컨테이너가 삭제되기 전까지 남는다.
 
 - **종료 (down)**
 
@@ -981,9 +940,6 @@
 
       $ docker network ls | grep workspace
       (출력 없음 — 네트워크도 함께 삭제됨)
-
-      $ curl -sI --max-time 3 localhost:8081
-      (접속 불가 - 컨테이너 종료됨)
 
 - **`down` 과 `down -v` 의 차이 (주의)**
 
@@ -1022,39 +978,18 @@
       NGINX_PORT=8080
       APP_MODE=production
 
-- **Compose가 .env 를 읽어 치환한 결과**
-
-      $ docker compose config
-      services:
-        client:
-          command: [sh, -c, "sleep 3; curl -s http://web:8080/"]
-        web:
-          environment:
-            APP_MODE: production
-            NGINX_PORT: "8080"
-          ports:
-            - target: 8080
-              published: "8081"
-
 - **컨테이너 안에 실제로 주입됐는지 확인**
 
       $ docker compose exec web env | grep -E "NGINX_PORT|APP_MODE"
       APP_MODE=production
       NGINX_PORT=8080
 
-- **템플릿이 치환된 결과 확인**
+- **템플릿이 실제로 치환됐는지 확인**
 
-      $ docker compose exec web cat /etc/nginx/conf.d/default.conf
-      server {
-          # 아래 리슨 포트는 컨테이너 기동 시 환경 변수 값으로 치환된다.
+      $ docker compose exec web cat /etc/nginx/conf.d/default.conf | grep listen
           listen       8080;
-          server_name  localhost;
 
-          location / {
-              root   /usr/share/nginx/html;
-              index  index.html;
-          }
-      }
+  > 템플릿의 `listen ${NGINX_PORT};` 이 컨테이너 안에서 `listen 8080;` 으로 렌더링됐다. 나머지 줄은 템플릿 원본과 동일하다.
 
 - **핵심 시연: 이미지를 다시 빌드하지 않고 리슨 포트 변경**
 
@@ -1062,9 +997,6 @@
 
       $ grep NGINX_PORT .env
       NGINX_PORT=8080
-
-      $ docker compose exec web cat /etc/nginx/conf.d/default.conf | grep listen
-          listen       8080;
 
       $ docker compose ps --format "table {{.Service}}\t{{.Ports}}"
       SERVICE   PORTS
@@ -1150,7 +1082,7 @@
       $ git status -sb | head -1
       ## main...origin/main
 
-  > 자격 증명을 묻지 않고 원격 저장소의 참조를 그대로 읽어 왔다. HTTPS였다면 토큰을 요구했을 지점이다. 13번 섹션의 `git remote -v` 출력이 HTTPS인 것은 그 시점의 실제 상태이며, 이 단계에서 SSH로 전환했다.
+  > 자격 증명을 묻지 않고 원격 저장소의 참조를 그대로 읽어 왔다. HTTPS였다면 토큰을 요구했을 지점이다. 12번 섹션의 `git remote -v` 출력이 HTTPS인 것은 그 시점의 실제 상태이며, 이 단계에서 SSH로 전환했다.
 
 - **배움 포인트 — 인증 방식의 차이와 보안 습관**
 
@@ -1176,13 +1108,13 @@
 | 파일 유출 시 | `~/.ssh/id_ed25519` 파일만으로 즉시 사용 가능 |
 | 보완하고 있는 것 | 파일 권한 `600`(소유자 전용), 개인 노트북 단독 사용, 저장소·문서에 개인키 미기재 |
 
-  보완책으로 언급한 파일 권한은 실제로 다음과 같다. 6번 권한 실습에서 `note.txt` 에 적용한 `600` 과 같은 값이며, `ssh-keygen` 이 키 생성 시 자동으로 부여한다.
+  보완책으로 든 파일 권한은 `ssh-keygen` 이 생성 시 자동으로 부여한 값이다.
 
-      $ stat -f "%Sp %OLp %N" ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
-      -rw------- 600 /Users/****/.ssh/id_ed25519
-      -rw-r--r-- 644 /Users/****/.ssh/id_ed25519.pub
+      $ ls -l ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+      -rw-------@ 1 ****  staff  411 Aug  5 20:49 /Users/****/.ssh/id_ed25519
+      -rw-r--r--@ 1 ****  staff  103 Aug  5 19:45 /Users/****/.ssh/id_ed25519.pub
 
-  개인키는 `600`(소유자만 읽기·쓰기), 공개키는 `644`(누구나 읽기 가능)로 갈린다. 공개키는 어차피 남에게 주는 값이므로 열어 두어도 되고, 개인키는 그룹·기타에 권한이 조금이라도 열려 있으면 SSH가 아예 사용을 거부한다. 14-4의 권한 숫자 규칙이 실제 보안 도구에서 강제되는 사례다.
+  개인키만 `-rw-------`(600)인 이유는 그룹·기타에 권한이 조금이라도 열려 있으면 SSH가 사용을 거부하기 때문이다. 14-4의 권한 숫자 규칙이 실제 도구에서 강제되는 사례다 (숫자 계산은 14-4 참고).
 
   **판단 근거**: 개인 노트북에서 혼자 쓰는 학습용 저장소이고, 유출 시 피해 범위가 이 공개 저장소 하나로 한정된다고 판단해 편의를 택했다. 다만 이는 위험이 없다는 뜻이 아니라 **위험을 알고 감수한 선택**이다. 공용 PC를 쓰거나, 운영 서버 접근 권한이 걸린 키이거나, 조직 저장소에 접근하는 키라면 반드시 passphrase를 걸어야 한다.
 

@@ -239,6 +239,43 @@ Error response from daemon: container 88b72e13f017... is not running
 
 ---
 
+### [참고] Linux 전용 — Docker 소켓 권한 거부
+
+이번 실습 환경은 macOS라 **겪지 않은 사례**다. 보고서(README)는 실제로 겪은 사례만 싣는 원칙이라 여기에 참고로 옮겨 둔다. Linux 환경에서는 가장 흔하게 만나는 Docker 첫 에러다.
+
+```
+permission denied while trying to connect to the Docker daemon socket
+at unix:///var/run/docker.sock
+```
+
+**원인**: Linux에서 Docker 소켓 `/var/run/docker.sock` 은 `root:docker` 소유이며 권한이 `srw-rw----` 다. `docker` 그룹에 속하지 않은 사용자는 읽기·쓰기가 막힌다.
+
+```bash
+ls -l /var/run/docker.sock
+# srw-rw---- 1 root docker 0 ... /var/run/docker.sock
+```
+
+**조치**:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+그룹 변경은 **새 로그인 세션부터** 적용된다. 로그아웃 후 재로그인하거나 `newgrp docker` 로 현재 셸에 즉시 반영한다. `id -nG` 에 `docker` 가 보이는지로 확인한다.
+
+**15-1(데몬 미기동)과 구분하는 법** — 에러 문구가 다르다.
+
+| 에러 문구 | 원인 | 조치 |
+| :--- | :--- | :--- |
+| `Cannot connect to the Docker daemon` | 데몬이 **꺼져 있음** | 데몬 기동 (macOS는 `open -a Docker`) |
+| `permission denied ... docker.sock` | 데몬은 떠 있으나 **접근 권한 없음** | `docker` 그룹에 사용자 추가 (Linux) |
+
+**macOS에서 발생하지 않는 이유**: Docker Desktop은 소켓을 시스템 경로가 아니라 사용자 홈 아래(`~/.docker/run/docker.sock`)에 둔다. 소유자가 곧 사용자 본인이므로 그룹 권한 문제가 생기지 않는다. macOS에서는 15-1의 "데몬이 꺼져 있음"이 압도적으로 흔한 원인이다.
+
+> **보안 참고**: `docker` 그룹 가입은 사실상 root 권한을 주는 것과 같다. 호스트 루트를 컨테이너에 마운트하면 무엇이든 할 수 있기 때문이다. 편의를 위해 넣되, 다중 사용자 서버에서는 아무에게나 부여하면 안 된다.
+
+---
+
 ## 4. 상황별 진단 체크리스트
 
 ### Docker 명령이 전부 실패할 때

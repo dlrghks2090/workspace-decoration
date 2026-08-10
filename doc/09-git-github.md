@@ -1,6 +1,6 @@
 # 09. Git과 GitHub
 
-> 보고서 대응: [13번 Git 설정 및 GitHub 연동](../README.md), 18번 .gitignore
+> 보고서 대응: [12번 Git 설정 및 GitHub 연동](../README.md), 18번 .gitignore
 
 ---
 
@@ -524,7 +524,7 @@ cd ~/Desktop && rm -rf git-practice
 
 **⚡ 30초 답변**
 
-> 보고서 13번에 있습니다. `git config --list` 로 사용자 정보를, `git remote -v` 로 원격 저장소를, `git branch -vv` 로 로컬 `main` 이 `origin/main` 을 추적한다는 것을 확인했습니다. `git log --oneline` 으로 커밋 이력도 남겼습니다.
+> 보고서 12번에 있습니다. `git config --list` 로 사용자 정보를, `git remote -v` 로 원격 저장소를, `git branch -vv` 로 로컬 `main` 이 `origin/main` 을 추적한다는 것을 확인했습니다. `git log --oneline` 으로 커밋 이력도 남겼습니다.
 >
 > 이후 보너스 5에서 원격을 HTTPS에서 SSH로 전환했고, 그 과정은 17-5에 있습니다.
 
@@ -539,9 +539,9 @@ git status -sb | head -1
 ```
 
 **꼬리질문 대비**
-- *"13번은 HTTPS인데 지금은 SSH다. 왜 다른가?"* → 13번은 그 시점의 실제 기록이고, 17-5에서 전환했다. 시점이 다른 실제 출력이라 고치지 않고 그대로 뒀으며 17-5에 전환 사실을 명시했다.
+- *"12번은 HTTPS인데 지금은 SSH다. 왜 다른가?"* → 12번은 그 시점의 실제 기록이고, 17-5에서 전환했다. 시점이 다른 실제 출력이라 고치지 않고 그대로 뒀으며 17-5에 전환 사실을 명시했다.
 
-**📄 근거**: 보고서 **13번** + **17-5**
+**📄 근거**: 보고서 **12번** + **17-5**
 
 ---
 
