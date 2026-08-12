@@ -284,7 +284,127 @@ docker compose exec client nslookup web
 
 ---
 
-## 8. 직접 해보기
+## 8. 접속 검증에 쓴 명령의 옵션
+
+포트 매핑이 동작하는지 확인할 때 쓴 두 명령이다.
+
+### `curl -s` 와 `curl -I`
+
+보고서 10번은 두 가지를 확인했다. **헤더로 응답 상태를, 본문으로 내용을** 본다.
+
+```bash
+curl -sI localhost:8081     # HTTP/1.1 200 OK ...
+curl -s  localhost:8081     # <h1>hello, world!</h1>
+```
+
+| 옵션 | 이름 | 역할 |
+| :--- | :--- | :--- |
+| `-s` | silent | 진행률 표시기와 **에러 메시지**를 숨김 |
+| `-I` | head | **헤더만** 받는다 (HEAD 요청) |
+| `-i` | include | 헤더 + 본문 |
+| `-S` | show-error | `-s` 중에도 에러는 표시 (`-sS` 로 조합) |
+| `-v` | verbose | 요청·응답 과정 전체 |
+| `-o` | output | 파일로 저장 |
+| `-L` | location | 리다이렉트 따라가기 |
+
+#### `-s` 는 에러도 숨긴다
+
+`-s` 를 붙이지 않으면 진행률 표시기가 앞에 붙어 로그가 지저분해진다. 그래서 문서에 붙일 출력에는 `-s` 를 쓴다. 다만 **숨기는 대상이 진행률만이 아니다.**
+
+```bash
+curl localhost:9999
+# curl: (7) Failed to connect to localhost port 9999 ...
+# 종료코드 7
+
+curl -s localhost:9999
+# (아무것도 출력되지 않는다)
+# 종료코드 7
+```
+
+진행률과 에러 메시지가 **둘 다 stderr로 나가기 때문에** `-s` 가 함께 막는다. 스크립트에서 `-s` 만 믿으면 실패를 놓치므로, **판단은 종료 코드로 한다.** 위에서 보듯 실패해도 `7` 은 정확히 돌아온다. 에러는 보고 싶다면 `-sS` 를 쓴다.
+
+#### `-I` 는 본문을 받지 않는다
+
+`-I` 는 단순히 헤더만 골라 보여주는 게 아니라 **HTTP 메서드 자체를 `HEAD` 로 바꾼다.** 서버는 헤더만 보내고 본문은 아예 전송하지 않는다.
+
+```bash
+curl -sI localhost:8081 | wc -c    # 236
+curl -si localhost:8081 | wc -c    # 259
+```
+
+차이가 정확히 **23바이트**인데, 이는 `index.html` 의 크기이자 응답 헤더의 `Content-Length: 23` 과 일치한다. `-i` 는 본문까지 받았고 `-I` 는 받지 않았다는 뜻이다.
+
+그래서 큰 파일이 있는 서버의 생존 여부만 확인할 때 `-I` 가 적합하다. 응답 상태는 알 수 있으면서 대역폭을 쓰지 않는다.
+
+#### 주소에서 생략된 것
+
+```
+localhost:8081  →  실제 요청은  http://localhost:8081/
+```
+
+프로토콜은 `http://`, 경로는 `/` 가 기본값이다. `-v` 로 확인할 수 있다.
+
+```bash
+curl -sv localhost:8081
+# > GET / HTTP/1.1          ← 경로가 / 로, 메서드가 GET 으로 채워졌다
+# > Host: localhost:8081
+```
+
+**여기서 `8081` 은 호스트 포트다.** 컨테이너 내부 포트(80 또는 8080)로는 접속할 수 없다. 두 `localhost` 가 서로 다른 네트워크 네임스페이스에 있기 때문이다 (2장 참고).
+
+### `docker ps --filter` 와 `--format`
+
+보고서 8·11·15-2번이 목록을 좁히고 다듬을 때 쓴 옵션이다.
+
+```bash
+docker ps -a --filter name=my-app
+# CONTAINER ID   IMAGE       ...   NAMES
+# 4f5751723918   my-web:v1   ...   my-app
+```
+
+`--filter`(=`-f`)는 조건에 맞는 것만 남긴다. **여러 번 주면 AND로 결합된다.**
+
+```bash
+docker ps -a --filter status=exited --filter ancestor=hello-world
+# 종료된 것 중에서 hello-world 이미지로 만든 것만
+```
+
+| 자주 쓰는 필터 | 뜻 |
+| :--- | :--- |
+| `name=문자열` | 이름에 그 문자열이 **포함**된 것 (완전 일치가 아니다) |
+| `status=exited` | 상태 (`running`, `exited`, `created`, `paused`) |
+| `ancestor=이미지` | 그 이미지로 만든 컨테이너 |
+| `label=키=값` | 라벨 |
+
+`--format` 은 **출력 열을 직접 고른다.** Go 템플릿 문법을 쓴다.
+
+```bash
+docker ps -a --format "table {{.Names}}\t{{.Status}}"
+# NAMES     STATUS
+# my-app    Up 10 minutes
+```
+
+| 조각 | 역할 |
+| :--- | :--- |
+| `table` | 머리글 줄을 붙인다 (없으면 데이터만) |
+| `{{.Names}}` | 열 이름. `.Image`, `.Status`, `.Ports`, `.ID` 등 |
+| `\t` | 열 구분 |
+
+`docker ps -a` 를 그냥 실행하면 한 줄이 **119자**라 문서에 붙이면 가로로 넘친다. `--format` 으로 필요한 열만 남기면 30자 안팎으로 줄어든다. 보고서가 이 옵션을 쓴 이유다.
+
+같은 문법이 다른 명령에도 통한다.
+
+```bash
+docker images my-web --format "{{.Repository}}:{{.Tag}} {{.CreatedSince}}"
+docker version --format '{{.Server.Version}}'
+docker info --format '{{.KernelVersion}}'
+```
+
+특히 `docker version --format '{{.Server.Version}}'` 은 **데몬이 죽어 있으면 종료 코드 1로 실패**하므로, 스크립트에서 데몬 생존 확인에 쓰기 좋다.
+
+---
+
+## 9. 직접 해보기
 
 ```bash
 cd ~/Desktop && mkdir net-practice && cd net-practice
@@ -348,7 +468,7 @@ cd ~/Desktop && rm -r net-practice
 
 ---
 
-## 9. 자주 하는 실수
+## 10. 자주 하는 실수
 
 | 실수 | 증상 | 해결 |
 | :--- | :--- | :--- |
@@ -362,7 +482,7 @@ cd ~/Desktop && rm -r net-practice
 
 ---
 
-## 10. 예상 질문과 답변 포인트
+## 11. 예상 질문과 답변 포인트
 
 평가 루브릭 **항목 3-2**(컨테이너 포트 원리)와 **항목 4-1**(포트 충돌 진단)이 이 문서에서 나온다. 아래 A그룹이 그 두 문항이고, B·C그룹은 따라붙기 쉬운 후속 질문이다.
 

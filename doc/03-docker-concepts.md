@@ -101,6 +101,104 @@ docker run --rm nginx sh -c 'grep PRETTY_NAME /etc/os-release'
 - **이미지가 가벼운 이유**: 커널을 담지 않아도 되니 수십~수백 MB로 끝난다. VM 이미지가 GB 단위인 것과 대비된다.
 - **리눅스 컨테이너가 macOS에서 그냥은 못 도는 이유**: 이미지 안의 프로그램은 리눅스 시스템 콜을 호출하는데 Darwin 커널은 그걸 모른다. 그래서 리눅스 커널을 가진 VM이 반드시 하나 필요하다.
 
+### `uname` — 커널에 직접 묻는 명령
+
+위에서 계속 쓴 명령이라 따로 정리한다. 이름은 `unix name` 의 줄임말이고, **실행 중인 커널에 질의**한다. `/etc/os-release` 처럼 누가 적어둔 파일을 읽는 게 아니라서 속일 수 없다.
+
+```bash
+uname -s -r
+# Darwin 25.5.0
+#   └┬─┘ └┬┘
+#    │    └── release  — 커널 버전
+#    └─────── system   — 커널 이름
+```
+
+#### 왜 두 옵션을 함께 쓰나
+
+`-s` 는 옵션을 아예 안 줬을 때의 기본값이라, 단독으로는 쓸 일이 없다. `-r` 과 묶을 때 의미가 생긴다.
+
+```bash
+uname          # Darwin          ← -s 와 같다
+uname -r       # 25.5.0          ← 무슨 OS인지 알 수 없다
+uname -s -r    # Darwin 25.5.0   ← 이름이 붙어야 판단이 된다
+```
+
+커널을 비교할 때 이게 중요하다. 컨테이너에서 `Linux 6.10.11-linuxkit`, macOS에서 `Darwin 25.5.0` 이 나오면 **버전이 아니라 커널 종류부터 다르다**는 게 한눈에 보인다.
+
+#### `-r` 은 커널 버전이지 OS 제품 버전이 아니다
+
+혼동하기 쉬운 지점이다. macOS에서는 두 숫자가 어긋나 있다.
+
+| 무엇 | 명령 | 값 |
+| :--- | :--- | :--- |
+| macOS 제품 버전 | `sw_vers -productVersion` | `26.5.2` |
+| **Darwin 커널 버전** | **`uname -r`** | **`25.5.0`** |
+
+보고서 2번의 실행 환경에 적힌 `macOS 26.5.2` 는 `sw_vers` 기준이다. `uname -r` 로는 다른 값이 나온다.
+
+리눅스에서는 `6.10.11-linuxkit` 처럼 `주.부.패치-접미어` 형태다. **접미어가 빌드 주체를 드러내서**, `linuxkit` 이면 Docker Desktop의 VM 커널이라는 걸 알 수 있다.
+
+#### 옵션 목록
+
+잘못된 플래그를 주면 macOS가 목록을 알려준다.
+
+```bash
+uname -Z
+# uname: illegal option -- Z
+# usage: uname [-amnoprsv]
+```
+
+| 옵션 | 이름 | macOS 출력 |
+| :--- | :--- | :--- |
+| `-s` | system name | `Darwin` |
+| `-r` | release | `25.5.0` |
+| `-m` | machine | `arm64` |
+| `-p` | processor | `arm` |
+| `-n` | nodename | 호스트명 |
+| `-o` | operating system | `Darwin` (리눅스는 `GNU/Linux`) |
+| `-v` | version | 빌드 날짜까지 포함한 긴 문자열 |
+| `-a` | all | 전부 |
+
+`-v` 에는 커널의 실제 이름이 드러난다. Darwin 커널은 XNU다.
+
+```bash
+uname -v
+# Darwin Kernel Version 25.5.0: Tue Jun  9 22:28:29 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_T6030
+```
+
+#### 플래그 순서는 출력 순서를 바꾸지 않는다
+
+```bash
+uname -s -r    # Darwin 25.5.0
+uname -sr      # Darwin 25.5.0
+uname -r -s    # Darwin 25.5.0   ← 뒤집어도 Darwin 이 먼저
+```
+
+출력은 `-a` 가 정한 고정 순서(`s n r v m`)를 따른다. 옵션 순서가 결과를 바꾸는 `ls` 같은 명령과 다른 점이다.
+
+#### `-a` 는 보고서에 그대로 붙이지 않는다
+
+`-a` 에는 `-n`(호스트명)이 딸려 온다. macOS 기본 호스트명은 계정 이름을 따라가서 **실명이 그대로 들어가는 경우가 많다.**
+
+```bash
+uname -a
+# Darwin ****-MacBookPro.local 25.5.0 Darwin Kernel Version 25.5.0: ... arm64
+#        └──────────┬─────────┘
+#                   └── 실명이 들어갈 수 있는 자리
+```
+
+그래서 문서에는 `-a` 대신 **필요한 것만 골라 쓴다.** 위에서 `uname -s -r` 을 쓴 데는 이 이유도 있다 (보고서 18번 마스킹 규칙과 같은 맥락).
+
+#### macOS(BSD)와 Linux(GNU)의 차이
+
+| | macOS (BSD) | Linux (GNU) |
+| :--- | :--- | :--- |
+| `-o` | `Darwin` | `GNU/Linux` |
+| `-i` | **없음** | 있음 (대개 `unknown`) |
+| 긴 옵션 (`--kernel-release`) | **없음** | 있음 |
+
+`-s`, `-r`, `-m`, `-a` 는 양쪽 같으므로 스크립트에서는 이것들만 쓰는 게 안전하다. `stat` 만큼 갈리지는 않지만 차이는 있다.
+
 ### 보고서 7번의 출력이 이 구조를 보여준다
 
 ```
