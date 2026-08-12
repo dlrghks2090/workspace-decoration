@@ -144,12 +144,50 @@ docker info
 # Is the docker daemon running?            ← 데몬이 죽어 있음
 ```
 
-**`docker --version` 이 나온다고 Docker를 쓸 수 있는 게 아니다.** 버전 확인은 CLI 혼자 할 수 있지만, 실제 작업은 데몬이 한다. 데몬 확인은 `docker info` 로 해야 한다.
+**`docker --version` 이 나온다고 Docker를 쓸 수 있는 게 아니다.** 버전 출력은 CLI 혼자 할 수 있지만, 실제 작업은 데몬이 한다.
 
-| 확인 대상 | 명령 | 실패하면 |
+### 함정 — `docker --version` 과 `docker version` 은 다른 명령이다
+
+하이픈 두 개 차이인데 동작이 완전히 다르다. **이걸 같은 명령으로 알고 있으면 위 설명이 이해되지 않는다.**
+
+| | `docker --version` | `docker version` |
+| :--- | :--- | :--- |
+| 출력 | **한 줄** | Client 블록 + **Server 블록** |
+| 데몬에 접속하는가 | **안 한다** | **한다** |
+| 데몬이 꺼져 있으면 | 그대로 성공 | Client만 찍고 실패 |
+
+직접 확인해 보면 분명하다. 가짜 소켓을 물려 데몬이 없는 상황을 만든 것이다.
+
+```bash
+DOCKER_HOST=unix:///tmp/nonexistent.sock docker --version
+# Docker version 27.3.1, build ce12230     ← 성공. 종료코드 0
+```
+
+```bash
+DOCKER_HOST=unix:///tmp/nonexistent.sock docker version
+#  Version:           27.3.1
+#  OS/Arch:           darwin/arm64          ← Client 까지만 나오고
+# Cannot connect to the Docker daemon at unix:///tmp/nonexistent.sock.
+#                                          ← Server 자리에서 끊긴다. 종료코드 1
+```
+
+`--version` 은 자기 버전 문자열을 찍고 끝난다. 데몬이 있든 없든 결과가 같으니 **동작 가능 여부의 근거가 될 수 없다.**
+
+### 데몬 확인은 "데몬에 질의하는 명령"이면 된다
+
+`docker info` 만 되는 게 아니다. **`docker version` 도 데몬에 질의하므로 `Server:` 섹션이 나왔다는 것 자체가 데몬 응답의 증거다.**
+
+| 확인 대상 | 쓸 수 있는 명령 | 실패하면 |
 | :--- | :--- | :--- |
 | CLI 설치 | `docker --version` | Docker 미설치 |
-| 데몬 동작 | `docker info` | 앱이 꺼져 있음 (macOS는 `open -a Docker`) |
+| **데몬 동작** | **`docker version`** (Server 블록 확인) 또는 **`docker info`** | 앱이 꺼져 있음 (macOS는 `open -a Docker`) |
+
+둘 중 무엇을 쓸지는 필요한 정보량으로 정한다.
+
+- `docker version` — 클라이언트/서버 버전과 아키텍처. **가볍고, 분리 구조가 눈에 보인다.**
+- `docker info` — 컨테이너 수, 스토리지 드라이버, 커널 버전 등 수십 줄. 상세 진단용.
+
+보고서 7번이 `docker version` 을 쓰는 이유가 이것이다. `Server: Docker Desktop ...` 한 줄로 데몬 응답과 클라이언트/서버 분리를 동시에 보여주므로, 별도 명령을 하나 더 칠 필요가 없다.
 
 ---
 
@@ -380,9 +418,8 @@ docker rm -f my-app            # 강제 삭제 (중지 + 삭제)
 ## 8. 직접 해보기
 
 ```bash
-# 1. 데몬 확인
-docker --version
-docker info | grep "Server Version"
+# 1. 데몬 확인 (Server 블록이 나오면 데몬이 응답한 것)
+docker version
 
 # 2. hello-world — 가장 작은 이미지로 동작 확인
 docker run hello-world
@@ -435,7 +472,8 @@ docker ps -a
 
 | 실수 | 증상 | 해결 |
 | :--- | :--- | :--- |
-| `docker --version` 만 보고 준비됐다고 판단 | 이후 명령이 전부 실패 | `docker info` 로 데몬 확인 |
+| `docker --version` 만 보고 준비됐다고 판단 | 이후 명령이 전부 실패 | `docker version` 의 `Server:` 또는 `docker info` 로 데몬 확인 |
+| `docker --version` 과 `docker version` 을 같은 명령으로 앎 | 데몬 확인을 했다고 착각 | 하이픈 없는 쪽만 데몬에 질의한다 |
 | 종료된 컨테이너에 `exec` | `is not running` | `docker start` 하거나 장기 실행 프로세스로 띄운다 |
 | `docker ps` 만 보고 컨테이너가 없다고 판단 | 이름 충돌 발생 | `docker ps -a` 로 종료된 것까지 확인 |
 | 컨테이너 안에서 설정 변경 후 재생성 | 변경분 소실 | Dockerfile에 반영하거나 볼륨 사용 |
@@ -484,12 +522,17 @@ docker ps -a
 
 > 이 질문은 두 가지를 묻고 있습니다. **`docker --version` 만으로는 동작 가능 여부를 알 수 없습니다.** Docker는 CLI와 데몬이 분리된 구조라, 버전 출력은 CLI 혼자 할 수 있지만 실제 작업은 데몬이 합니다.
 >
-> 그래서 `docker info` 로 데몬 응답까지 확인해야 합니다. 실습 중 CLI는 정상인데 데몬이 꺼져 있어 실패한 사례를 15-1에 기록했습니다.
+> 그래서 보고서 7번에서는 `docker version` 까지 확인했습니다. 이 명령은 Client 정보를 찍은 뒤 **데몬에 질의해** Server 섹션을 채우므로, `Server: Docker Desktop ...` 이 출력됐다는 것 자체가 데몬이 응답했다는 증거입니다. 실습 중 CLI는 정상인데 데몬이 꺼져 있어 실패한 사례를 15-1에 기록했습니다.
 
 | 확인 대상 | 명령 | 실패하면 |
 | :--- | :--- | :--- |
 | CLI 설치 | `docker --version` | Docker 미설치 |
-| 데몬 동작 | `docker info` | 앱이 꺼져 있음 |
+| 데몬 동작 | `docker version` 의 `Server:` 블록 (또는 `docker info`) | 앱이 꺼져 있음 |
+
+**따라붙을 질문**
+
+- *"`docker info` 로 해야 하는 것 아닌가?"* → `docker info` 도 됩니다. 데몬에 질의하는 명령이면 무엇이든 증거가 됩니다. `docker version` 을 쓴 이유는 **데몬 응답과 클라이언트/서버 분리를 한 번에** 보여주기 때문입니다. `docker info` 는 수십 줄이라 상세 진단에 씁니다.
+- *"`docker --version` 과 `docker version` 이 다른 명령인가?"* → 다릅니다. 하이픈 있는 쪽은 **데몬에 접속하지 않아** 데몬이 꺼져 있어도 종료코드 0으로 성공합니다. 그래서 동작 가능 여부의 근거가 못 됩니다.
 
 **📄 근거**: 보고서 **7번** + **15-1**
 
@@ -594,12 +637,12 @@ docker ps -a
 > CLI와 데몬을 분리해서 확인합니다.
 >
 > ```bash
-> docker --version    # 성공 → CLI는 정상
-> docker info         # 실패 → 데몬 문제
+> docker --version    # 성공 → CLI는 정상 (데몬에 접속하지 않는 명령)
+> docker version      # Client 만 나오고 실패 → 데몬 문제
 > open -a Docker      # macOS 기동
 > ```
 >
-> 두 명령의 결과가 갈리는 지점이 문제의 경계입니다. 실습에서 실제로 이 방식으로 원인을 특정했습니다.
+> 두 명령의 결과가 갈리는 지점이 문제의 경계입니다. 앞쪽은 CLI 혼자 처리하고 뒤쪽은 데몬에 질의하므로, **뒤쪽만 실패하면 범인은 데몬**입니다. 실습에서 실제로 이 방식으로 원인을 특정했습니다.
 
 ---
 

@@ -14,7 +14,7 @@
 
 ```bash
 # 1. Docker 데몬 살아 있는지 (꺼져 있으면 실연이 전부 막힌다)
-docker info | grep "Server Version"
+docker version --format '{{.Server.Version}}'   # 27.3.1 이 나오면 정상
 # 안 되면: open -a Docker  → 30초 대기
 
 # 2. 저장소 위치로 이동
@@ -98,12 +98,13 @@ cd ~/Desktop && rm -r perm
 **💻 실연 명령**
 
 ```bash
-docker --version                    # CLI
-docker info | grep "Server Version" # 데몬
-docker version                      # 클라이언트/서버 분리 확인
+docker --version   # CLI 만 확인. 데몬이 꺼져 있어도 성공한다
+docker version     # Server 블록이 나오면 데몬까지 확인된 것
 ```
 
-**이 답변이 강한 이유**: 질문이 "출력되고, **동작 가능한 상태인가**"로 두 가지를 묻는다. 둘을 구분해 답하면 이해도가 드러난다.
+보고서 7번에 있는 두 명령 그대로다. `docker info` 를 따로 칠 필요가 없다 — `docker version` 이 이미 데몬에 질의하기 때문이다.
+
+**이 답변이 강한 이유**: 질문이 "출력되고, **동작 가능한 상태인가**"로 두 가지를 묻는다. 둘을 구분해 답하면 이해도가 드러난다. 특히 **`docker --version` 과 `docker version` 이 다른 명령**이라는 것, 앞의 것은 데몬에 접속조차 하지 않아 근거가 못 된다는 것을 짚으면 확실하다.
 
 **꼬리질문 대비**
 - *"macOS에서 `systemctl status docker` 는?"* → 안 된다. `systemctl` 은 systemd 기반 Linux 전용이다. macOS는 Docker Desktop 앱이 리눅스 VM 안의 데몬을 관리한다. `docker version` 출력에서 Client가 `darwin/arm64`, Server가 `linux/arm64` 로 갈리는 게 그 증거다.
